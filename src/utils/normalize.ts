@@ -160,6 +160,7 @@ export function normalizeRule(raw: any, availablePeriods: Period[] = []): Schedu
   const repeatDetail = raw.repeatDetail || raw.repeat_detail || 'Weekly';
   const active = raw.active !== undefined ? (raw.active === 1 || raw.active === true || raw.active === '1') : true;
   const notes = raw.notes || '';
+  const dateRanges = Array.isArray(raw.dateRanges) ? raw.dateRanges : undefined;
 
   return {
     id: ruleId,
@@ -171,9 +172,10 @@ export function normalizeRule(raw: any, availablePeriods: Period[] = []): Schedu
     dayOfWeek: singleDay,
     daysOfWeek,
     periodIds,
+    dateRanges,
     repeatDetail,
     active,
-    exceptions,
+    exceptions: [],
     notes,
     createdAt: raw.createdAt || raw.created_at || undefined,
 

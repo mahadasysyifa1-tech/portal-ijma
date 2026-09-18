@@ -28,6 +28,7 @@ export function parseUrlRoute(db?: DatabaseState): ParsedRoute {
       else if (lower === 'conflicts' || lower === 'konflik') tab = 'conflicts';
       else if (lower === 'database' || lower === 'data') tab = 'database';
       else if (lower === 'export' || lower === 'ekspor' || lower === 'export-import') tab = 'export-import';
+      else if (lower === 'rule-manager' || lower === 'rules' || lower === 'rule_manager' || lower === 'syllabus') tab = 'rule-manager';
     }
 
     let role: ViewerRole | undefined = undefined;

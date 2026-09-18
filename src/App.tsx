@@ -15,6 +15,7 @@ import { HomeTab } from './components/HomeTab';
 import { JournalView, ViewerRole } from './components/JournalView';
 import { ExportImportView } from './components/ExportImportView';
 import { KaldikView } from './components/kaldik/KaldikView';
+import { RuleManagerView } from './components/ruleManager/RuleManagerView';
 import { parseUrlRoute, updateUrlRoute } from './utils/routing';
 
 export default function App() {
@@ -387,7 +388,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans antialiased selection:bg-amber-500 selection:text-white">
+    <div className="min-h-screen bg-[#024884] text-slate-900 flex flex-col font-sans antialiased selection:bg-amber-500 selection:text-white">
       {/* Top Header & Navigation */}
       <Header
         activeTab={activeTab}
@@ -447,6 +448,7 @@ export default function App() {
             highlightDate={journalNavParams?.date}
             onClearInitialDeepLink={() => setJournalNavParams(null)}
             onOpenAdminLogin={handleOpenAdminLogin}
+            onNavigateToRuleManager={() => handleTabChange('rule-manager')}
           />
         )}
 
@@ -516,6 +518,34 @@ export default function App() {
           />
         )}
 
+        {/* Menu Tab: Rule Manager Studio (Aturan Jadwal, Event Kaldik, & Distribusi Silabus) */}
+        {activeTab === 'rule-manager' && (
+          <RuleManagerView
+            db={db}
+            onUpdateDb={(updater) => {
+              if (!isAdmin) {
+                setIsAdminModalOpen(true);
+                return;
+              }
+              const updated = updater(db);
+              saveDatabase(updated);
+            }}
+            onEditRule={handleEditRule}
+            onAddRule={handleAddRule}
+            onToggleRuleActive={(ruleId) => {
+              const rule = db.rules.find((r) => r.id === ruleId);
+              if (rule) {
+                handleToggleRuleActive(ruleId, !rule.active);
+              }
+            }}
+            onDeleteRule={handleDeleteRule}
+            isAdmin={isAdmin}
+            onOpenAdminLogin={handleOpenAdminLogin}
+            onNavigateToJournal={handleNavigateToJournal}
+            onNavigateToSchedule={() => handleTabChange('studio')}
+          />
+        )}
+
         {/* Menu Tab: Basis Data */}
         {activeTab === 'database' && (
           <EntityManager
@@ -540,6 +570,7 @@ export default function App() {
             }}
             onDeleteRule={handleDeleteRule}
             onNavigateToExportImport={() => handleTabChange('export-import')}
+            onNavigateToRuleManager={() => handleTabChange('rule-manager')}
             isAdmin={isAdmin}
             onOpenAdminLogin={handleOpenAdminLogin}
           />

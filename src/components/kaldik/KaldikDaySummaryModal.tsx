@@ -123,7 +123,7 @@ export const KaldikDaySummaryModal: React.FC<KaldikDaySummaryModalProps> = ({
               className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>+ Event</span>
+              <span>Event</span>
             </button>
             <button
               type="button"

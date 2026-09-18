@@ -7,6 +7,7 @@ import {
 } from '../../types';
 import { SingleEntryCell, SingleEntryCellConfig, EntryFullData, getClassColor } from './SingleEntryCell';
 import { computeResolvedSlots } from '../../utils/scheduleEngine';
+import { doesIntersectRange } from '../../utils/dateNormalizer';
 import { Clock } from 'lucide-react';
 import { ClassIcon } from '../ClassIcon';
 
@@ -56,17 +57,24 @@ export const WeekGridView: React.FC<WeekGridViewProps> = ({
 
   // All resolved slots
   const allResolvedSlots = useMemo(() => {
-    return computeResolvedSlots(db.rules);
-  }, [db.rules]);
+    return computeResolvedSlots(db.rules, db.periods);
+  }, [db.rules, db.periods]);
 
   // Filter slots for the selected single entity (either a specific class or a specific teacher)
   const entitySlots = useMemo(() => {
     if (!selectedEntityId) return [];
 
     return allResolvedSlots.filter((slot) => {
-      // Period filter: if a specific period is selected, match it
-      if (selectedPeriodId && selectedPeriodId !== 'all' && slot.periodId !== selectedPeriodId) {
-        return false;
+      // Period filter: if a specific period is selected, match by date range or id
+      if (selectedPeriodId && selectedPeriodId !== 'all') {
+        const targetP = periodMap.get(selectedPeriodId);
+        if (targetP && targetP.startDate && targetP.endDate) {
+          if (!doesIntersectRange(slot.dateRanges || [], targetP.startDate, targetP.endDate)) {
+            return false;
+          }
+        } else if (slot.periodId !== selectedPeriodId) {
+          return false;
+        }
       }
 
       if (entityType === 'student_class') {
@@ -75,7 +83,7 @@ export const WeekGridView: React.FC<WeekGridViewProps> = ({
         return slot.teacherId === selectedEntityId;
       }
     });
-  }, [allResolvedSlots, selectedEntityId, selectedPeriodId, entityType]);
+  }, [allResolvedSlots, selectedEntityId, selectedPeriodId, entityType, periodMap]);
 
   // Map slots into (day, sessionId) -> EntryFullData
   const slotGrid = useMemo(() => {

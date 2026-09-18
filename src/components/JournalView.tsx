@@ -30,7 +30,6 @@ import {
   formatUnitDisplay,
   getScopedUnits
 } from '../utils/pacingEngine';
-import { AdminScopeModal } from './syllabus/AdminScopeModal';
 
 export type ViewerRole = 'student' | 'teacher' | 'admin';
 export type JournalFilterMode = 'all' | 'class' | 'teacher';
@@ -48,6 +47,7 @@ interface JournalViewProps {
   highlightDate?: string;
   onClearInitialDeepLink?: () => void;
   onOpenAdminLogin: () => void;
+  onNavigateToRuleManager?: () => void;
 }
 
 export const JournalView: React.FC<JournalViewProps> = ({
@@ -62,7 +62,8 @@ export const JournalView: React.FC<JournalViewProps> = ({
   initialClassId,
   highlightDate,
   onClearInitialDeepLink,
-  onOpenAdminLogin
+  onOpenAdminLogin,
+  onNavigateToRuleManager
 }) => {
   // Navigation states
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(initialSubjectId || null);
@@ -73,9 +74,6 @@ export const JournalView: React.FC<JournalViewProps> = ({
   const [filterMode, setFilterMode] = useState<JournalFilterMode>('all');
   const [filterClassId, setFilterClassId] = useState<string>(db.classes[0]?.id || '');
   const [filterTeacherId, setFilterTeacherId] = useState<string>(db.teachers[0]?.id || '');
-
-  // Modals
-  const [isScopeModalOpen, setIsScopeModalOpen] = useState(false);
 
   // 1-time token state for row highlight (e.g. from Home schedule occurrence)
   const [activeHighlightDate, setActiveHighlightDate] = useState<string | null>(highlightDate || null);
@@ -205,9 +203,26 @@ export const JournalView: React.FC<JournalViewProps> = ({
     if (!selectedSubjectId || !selectedClassId) return null;
     const projection = computePacingProjection(db, selectedSubjectId, selectedClassId);
     const scopedUnits = getScopedUnits(db, selectedSubjectId, selectedClassId);
+
+    // Calculate total pages across scoped syllabus units
+    const totalPages = scopedUnits.reduce((acc, u) => {
+      const pStart = typeof u.page_start === 'number' ? u.page_start : parseInt(String(u.page_start), 10);
+      const pEnd = typeof u.page_end === 'number' ? u.page_end : parseInt(String(u.page_end), 10);
+      if (!isNaN(pStart) && !isNaN(pEnd) && pEnd >= pStart) {
+        return acc + (pEnd - pStart + 1);
+      }
+      return acc + 1;
+    }, 0);
+
+    const pagesPerSession = projection.length > 0
+      ? (totalPages / projection.length).toFixed(1)
+      : '0';
+
     return {
       projection,
-      scopedUnits
+      scopedUnits,
+      totalPages,
+      pagesPerSession
     };
   }, [db, selectedSubjectId, selectedClassId]);
 
@@ -224,20 +239,6 @@ export const JournalView: React.FC<JournalViewProps> = ({
     );
   }, [db.syllabusScopes, selectedSubjectId, selectedClassId]);
 
-  const handleSaveScope = (scope: SyllabusScope | null) => {
-    onUpdateDb((prev) => {
-      const currentScopes = prev.syllabusScopes || [];
-      const filtered = currentScopes.filter(
-        (s) =>
-          !(s.subject_id === selectedSubjectId && s.class_section_id === selectedClassId)
-      );
-      return {
-        ...prev,
-        syllabusScopes: scope ? [...filtered, scope] : filtered
-      };
-    });
-  };
-
   return (
     <div className="space-y-6">
       {/* Top Banner: Header Card */}
@@ -251,9 +252,6 @@ export const JournalView: React.FC<JournalViewProps> = ({
               <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                 Jurnal Pembelajaran &amp; Silabus
               </h2>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                Terintegrasi Jadwal
-              </span>
             </div>
             <p className="text-xs text-slate-500 font-medium truncate">
               Distribusi materi dan pencapaian kurikulum per pertemuan sesi akademik
@@ -267,10 +265,10 @@ export const JournalView: React.FC<JournalViewProps> = ({
         <div className="space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+              <h3 className="text-sm sm:text-base font-bold text-white">
                 Pilih Mata Pelajaran
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-100">
                 {filterMode === 'class'
                   ? `Menampilkan mata pelajaran untuk ${selectedFilterClass?.name || 'kelas terpilih'}`
                   : filterMode === 'teacher'
@@ -461,13 +459,13 @@ export const JournalView: React.FC<JournalViewProps> = ({
               className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer"
               title="Kembali ke daftar pelajaran"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5 text-white" />
             </button>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+              <h3 className="text-sm sm:text-base font-bold text-white">
                 Pilih Kelas &amp; Rombel: {currentSubject?.name}
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-100">
                 Pelajaran ini dijadwalkan pada lebih dari satu rombel kelas. Pilih kelas yang ingin ditinjau.
               </p>
             </div>
@@ -564,16 +562,19 @@ export const JournalView: React.FC<JournalViewProps> = ({
 
               {/* Admin Scope Button */}
               {isAdmin ? (
-                <button
-                  type="button"
-                  onClick={() => setIsScopeModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors cursor-pointer"
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-amber-700" />
-                  <span>
-                    {existingScope ? 'Edit Batas Silabus (Scope)' : 'Atur Batas Silabus'}
-                  </span>
-                </button>
+                onNavigateToRuleManager && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToRuleManager}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors cursor-pointer"
+                    title="Buka Rule Manager Studio untuk mengatur batas bab & laju materi"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-amber-700" />
+                    <span>
+                      {existingScope ? 'Edit Batas di Rule Manager' : 'Atur Batas di Rule Manager'}
+                    </span>
+                  </button>
+                )
               ) : (
                 <button
                   type="button"
@@ -585,30 +586,35 @@ export const JournalView: React.FC<JournalViewProps> = ({
               )}
             </div>
 
-            {/* Meta details */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-slate-400 block font-medium">Total Pertemuan:</span>
-                <span className="text-sm font-bold text-slate-900">
-                  {pacingData?.projection.length || 0} Pertemuan Sesi
+            {/* Meta details (Clean, low-visibility inline presentation) */}
+            <div className="flex flex-wrap items-center justify-between gap-y-1.5 gap-x-3 text-xs text-slate-500 pt-0.5">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="flex items-center gap-1">
+                  <span className="text-slate-400">Total:</span>
+                  <span className="font-semibold text-slate-700">
+                    {pacingData?.projection.length || 0} Pertemuan
+                  </span>
                 </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-slate-400 block font-medium">Cakupan Materi:</span>
-                <span className="text-sm font-bold text-amber-700">
-                  {pacingData?.scopedUnits.length || 0} Bab Tercover
+                <span className="text-slate-300">•</span>
+                <span className="flex items-center gap-1">
+                  <span className="text-slate-400">Cakupan:</span>
+                  <span className="font-semibold text-amber-700">
+                    {pacingData?.scopedUnits.length || 0} Bab
+                  </span>
                 </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-slate-400 block font-medium">Status Scope:</span>
-                <span className="text-xs font-bold text-slate-800">
-                  {existingScope ? 'Kustomisasi (Override)' : 'Full Syllabus (Bawaan)'}
+                <span className="text-slate-300">•</span>
+                <span className="flex items-center gap-1">
+                  <span className="text-slate-400">Laju:</span>
+                  <span className="font-semibold text-emerald-700">
+                    ~{pacingData?.pagesPerSession || 0} hal/sesi
+                  </span>
                 </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-slate-400 block font-medium">Perhitungan Pacing:</span>
-                <span className="text-xs font-bold text-emerald-700">
-                  Linear per Halaman
+                <span className="text-slate-300">•</span>
+                <span className="flex items-center gap-1">
+                  <span className="text-slate-400">Scope:</span>
+                  <span className="font-semibold text-slate-600">
+                    {existingScope ? 'Kustom' : 'Standar'}
+                  </span>
                 </span>
               </div>
             </div>
@@ -641,9 +647,9 @@ export const JournalView: React.FC<JournalViewProps> = ({
                     ref={isToday || isTargetHighlighted ? todayRowRef : undefined}
                     className={`rounded-2xl border transition-all p-4 relative overflow-hidden ${
                       isToday
-                        ? 'bg-amber-50/50 border-amber-300 shadow-md ring-2 ring-amber-400/30'
+                        ? 'bg-amber-50 border-amber-300 shadow-md ring-2 ring-amber-400'
                         : isTargetHighlighted
-                        ? 'bg-indigo-50/50 border-indigo-300 shadow-md ring-2 ring-indigo-400/30'
+                        ? 'bg-indigo-50 border-indigo-300 shadow-md ring-2 ring-indigo-400'
                         : isPast
                         ? 'bg-slate-50/70 border-slate-200 opacity-90'
                         : 'bg-white border-slate-200 shadow-2xs hover:border-slate-300'
@@ -748,18 +754,6 @@ export const JournalView: React.FC<JournalViewProps> = ({
             </div>
           )}
         </div>
-      )}
-
-      {/* Admin Scope Modal */}
-      {selectedSubjectId && selectedClassId && (
-        <AdminScopeModal
-          isOpen={isScopeModalOpen}
-          onClose={() => setIsScopeModalOpen(false)}
-          db={db}
-          subjectId={selectedSubjectId}
-          classSectionId={selectedClassId}
-          onSaveScope={handleSaveScope}
-        />
       )}
     </div>
   );

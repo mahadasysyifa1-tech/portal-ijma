@@ -231,7 +231,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               >
                 {db.teachers.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name}{t.panggilan ? ` (${t.panggilan})` : ''}
+                    {t.panggilan}
                   </option>
                 ))}
               </select>

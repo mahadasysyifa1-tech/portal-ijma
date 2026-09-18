@@ -106,7 +106,8 @@ export interface ResolvedSlot {
   sessionId: string;
   day: DayOfWeek;
   periodId: string;
-  hasException: boolean;
+  dateRanges?: { startDate: string; endDate: string }[];
+  hasException?: boolean;
   exceptionDetail?: string;
 }
 
@@ -120,9 +121,10 @@ export interface ScheduleRule {
   dayOfWeek?: DayOfWeek;
   daysOfWeek?: DayOfWeek[];
   periodIds: string[];
+  dateRanges?: { startDate: string; endDate: string }[];
   repeatDetail: 'Weekly' | 'Bi-Weekly' | 'Custom';
   active: boolean;
-  exceptions: RuleException[];
+  exceptions?: RuleException[];
   notes?: string;
   createdAt?: string;
 

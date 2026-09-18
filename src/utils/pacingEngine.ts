@@ -3,9 +3,9 @@ import {
   SyllabusUnit,
   SyllabusScope,
   ScheduledSessionOccurrence,
-  DayOfWeek,
-  RuleException
+  DayOfWeek
 } from '../types';
+import { getNormalizedDateRangesForRule } from './dateNormalizer';
 
 const JS_DOW_TO_DAYOFWEEK: Record<number, DayOfWeek> = {
   1: 'Monday',
@@ -110,7 +110,6 @@ export function getScheduledSessionsForSubjectClass(
   class_section_id: string
 ): ScheduledSessionOccurrence[] {
   const occurrences: ScheduledSessionOccurrence[] = [];
-  const periodMap = new Map((db.periods || []).map((p) => [p.id, p]));
   const sessionMap = new Map((db.sessions || []).map((s) => [s.id, s]));
 
   const activeRules = (db.rules || []).filter(
@@ -120,6 +119,8 @@ export function getScheduledSessionsForSubjectClass(
       (r.classId === class_section_id || (r as any).class_id === class_section_id)
   );
 
+  const seenOccurrenceKeys = new Set<string>();
+
   for (const rule of activeRules) {
     // Resolve scheduled days
     const rawDays = rule.daysOfWeek || (rule as any).days_of_week;
@@ -128,52 +129,17 @@ export function getScheduledSessionsForSubjectClass(
         ? (rawDays as DayOfWeek[])
         : [(rule.dayOfWeek || (rule as any).day_of_week || 'Monday') as DayOfWeek];
 
-    // Resolve period IDs
-    let rulePeriodIds: string[] = [];
-    const rawPids = rule.periodIds || (rule as any).period_ids;
-    if (Array.isArray(rawPids) && rawPids.length > 0) {
-      rulePeriodIds = rawPids.map(String);
-    } else if (db.periods && db.periods.length > 0) {
-      rulePeriodIds = db.periods.map((p) => p.id);
-    }
+    // Compute normalized date ranges for rule (merges overlapping presets)
+    const normalizedRanges = getNormalizedDateRangesForRule(rule, db.periods || []);
+    const ruleSessionId = rule.sessionId || (rule as any).session_id || '';
+    const sessionObj = sessionMap.get(ruleSessionId);
+    const ruleTeacherId = rule.teacherId || (rule as any).teacher_id || '';
+    const ruleRoomId = rule.roomId || (rule as any).room_id || '';
 
-    const exceptions: RuleException[] = Array.isArray(rule.exceptions) ? rule.exceptions : [];
-
-    for (const pid of rulePeriodIds) {
-      const period = periodMap.get(pid);
-      if (!period || !period.startDate || !period.endDate) continue;
-
-      const start = new Date(period.startDate);
-      const end = new Date(period.endDate);
+    for (const range of normalizedRanges) {
+      const start = new Date(range.startDate);
+      const end = new Date(range.endDate);
       if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) continue;
-
-      // Check exception for this period
-      const exception = exceptions.find(
-        (e) => (e.periodId || (e as any).period_id) === pid
-      );
-
-      const effectiveSessionId =
-        exception?.overrideSessionId ||
-        (exception as any)?.override_session_id ||
-        rule.sessionId ||
-        (rule as any).session_id ||
-        '';
-
-      const effectiveTeacherId =
-        exception?.overrideTeacherId ||
-        (exception as any)?.override_teacher_id ||
-        rule.teacherId ||
-        (rule as any).teacher_id ||
-        '';
-
-      const effectiveRoomId =
-        exception?.overrideRoomId ||
-        (exception as any)?.override_room_id ||
-        rule.roomId ||
-        (rule as any).room_id ||
-        '';
-
-      const sessionObj = sessionMap.get(effectiveSessionId);
 
       const curr = new Date(start);
       while (curr <= end) {
@@ -186,22 +152,32 @@ export function getScheduledSessionsForSubjectClass(
           const day = String(curr.getDate()).padStart(2, '0');
           const dateStr = `${year}-${month}-${day}`;
 
-          occurrences.push({
-            id: `${dateStr}_${effectiveSessionId}_${rule.id}`,
-            date: dateStr,
-            day: dow,
-            sessionId: effectiveSessionId,
-            sessionName: sessionObj?.name || effectiveSessionId,
-            startTime: sessionObj?.startTime || (sessionObj as any)?.start_time || '08:00',
-            endTime: sessionObj?.endTime || (sessionObj as any)?.end_time || '10:00',
-            ruleId: rule.id,
-            subjectId: subject_id,
-            classId: class_section_id,
-            teacherId: effectiveTeacherId,
-            roomId: effectiveRoomId,
-            periodId: pid,
-            meetingIndex: 0 // populated after sorting
-          });
+          const occurrenceKey = `${dateStr}_${ruleSessionId}_${rule.id}`;
+          if (!seenOccurrenceKeys.has(occurrenceKey)) {
+            seenOccurrenceKeys.add(occurrenceKey);
+
+            // Optional informational matching period
+            const matchingPeriod = (db.periods || []).find(
+              (p) => (p.startDate || (p as any).start_date || '') <= dateStr && dateStr <= (p.endDate || (p as any).end_date || '')
+            );
+
+            occurrences.push({
+              id: occurrenceKey,
+              date: dateStr,
+              day: dow,
+              sessionId: ruleSessionId,
+              sessionName: sessionObj?.name || ruleSessionId,
+              startTime: sessionObj?.startTime || (sessionObj as any)?.start_time || '08:00',
+              endTime: sessionObj?.endTime || (sessionObj as any)?.end_time || '10:00',
+              ruleId: rule.id,
+              subjectId: subject_id,
+              classId: class_section_id,
+              teacherId: ruleTeacherId,
+              roomId: ruleRoomId,
+              periodId: matchingPeriod?.id || (rule.periodIds?.[0] || ''),
+              meetingIndex: 0 // populated after sorting
+            });
+          }
         }
         curr.setDate(curr.getDate() + 1);
       }

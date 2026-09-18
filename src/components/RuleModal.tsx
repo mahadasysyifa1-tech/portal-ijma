@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   DatabaseState,
   ScheduleRule,
-  RuleException,
   DayOfWeek
 } from '../types';
 import {
   X,
-  Zap,
   Plus,
   Trash2,
   AlertCircle,
@@ -17,8 +15,11 @@ import {
   Layers,
   GraduationCap,
   Users,
-  DoorOpen
+  DoorOpen,
+  Calendar,
+  Sparkles
 } from 'lucide-react';
+import { getNormalizedDateRangesForRule, formatDateRangesSummary } from '../utils/dateNormalizer';
 
 interface RuleModalProps {
   isOpen: boolean;
@@ -82,10 +83,22 @@ export const RuleModal: React.FC<RuleModalProps> = ({
   );
   const [active, setActive] = useState(editingRule ? editingRule.active : true);
   const [notes, setNotes] = useState(editingRule?.notes || '');
-  const [exceptions, setExceptions] = useState<RuleException[]>(
-    editingRule?.exceptions ? [...editingRule.exceptions] : []
-  );
-  const [showExceptions, setShowExceptions] = useState(false);
+
+  // Normalized date range preview for selected presets
+  const normalizedDateRanges = useMemo(() => {
+    const dummyRule: ScheduleRule = {
+      id: 'temp',
+      subjectId: '',
+      classId: '',
+      teacherId: '',
+      roomId: '',
+      sessionId: '',
+      periodIds,
+      repeatDetail: 'Weekly',
+      active: true
+    };
+    return getNormalizedDateRangesForRule(dummyRule, db.periods);
+  }, [periodIds, db.periods]);
 
   // Auto-fill default teacher/room if new rule and subject changes
   const handleSubjectChange = (newSubjectId: string) => {
@@ -101,8 +114,6 @@ export const RuleModal: React.FC<RuleModalProps> = ({
     if (periodIds.includes(pId)) {
       if (periodIds.length > 1) {
         setPeriodIds(periodIds.filter((id) => id !== pId));
-        // Remove exceptions for this period if any
-        setExceptions(exceptions.filter((e) => e.periodId !== pId));
       }
     } else {
       const nextPids = [...periodIds, pId];
@@ -110,33 +121,6 @@ export const RuleModal: React.FC<RuleModalProps> = ({
       nextPids.sort((a, b) => (periodOrder.get(a) ?? 999) - (periodOrder.get(b) ?? 999));
       setPeriodIds(nextPids);
     }
-  };
-
-  const addException = () => {
-    const availablePeriod = periodIds[0] || db.periods[0]?.id || 'prd-1';
-    const otherSession = db.sessions.find((s) => s.id !== sessionId) || db.sessions[0];
-
-    const newException: RuleException = {
-      id: `exc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      ruleId: editingRule?.id || 'temp-rule-id',
-      periodId: availablePeriod,
-      overrideSessionId: otherSession?.id || sessionId,
-      overrideRoomId: '',
-      overrideTeacherId: '',
-      note: 'Period relocated to alternate session'
-    };
-
-    setExceptions([...exceptions, newException]);
-  };
-
-  const updateException = (idx: number, updates: Partial<RuleException>) => {
-    const next = [...exceptions];
-    next[idx] = { ...next[idx], ...updates };
-    setExceptions(next);
-  };
-
-  const removeException = (idx: number) => {
-    setExceptions(exceptions.filter((_, i) => i !== idx));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -161,7 +145,7 @@ export const RuleModal: React.FC<RuleModalProps> = ({
       periodIds: sortedPeriodIds,
       repeatDetail,
       active,
-      exceptions,
+      exceptions: [],
       notes: notes.trim() || undefined,
       createdAt: editingRule?.createdAt || new Date().toISOString()
     };
@@ -414,12 +398,12 @@ export const RuleModal: React.FC<RuleModalProps> = ({
               )}
             </div>
 
-            {/* Column 2 (Right): Dedicated Column for Periods with Vertical List Style and Checkboxes */}
+            {/* Column 2 (Right): Dedicated Column for Period Presets with Vertical List Style, Checkboxes & Date Preview */}
             <div className="flex flex-col">
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
                   <Layers className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Periods ({periodIds.length}/{db.periods.length} selected)</span>
+                  <span>Preset Periode ({periodIds.length}/{db.periods.length} dipilih)</span>
                 </label>
                 <div className="flex items-center gap-1.5 text-[10px]">
                   <button
@@ -427,7 +411,7 @@ export const RuleModal: React.FC<RuleModalProps> = ({
                     onClick={() => setPeriodIds(db.periods.map((p) => p.id))}
                     className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
                   >
-                    All
+                    Semua
                   </button>
                   <span className="text-slate-300">·</span>
                   <button
@@ -440,7 +424,7 @@ export const RuleModal: React.FC<RuleModalProps> = ({
                 </div>
               </div>
 
-              {/* Vertical Stacked List Style with Checkboxes (No bulky cards) */}
+              {/* Vertical Stacked List Style with Checkboxes */}
               <div className="bg-slate-50/80 border border-slate-200 rounded-lg divide-y divide-slate-200/60 overflow-hidden shadow-2xs">
                 {db.periods
                   .slice()
@@ -469,6 +453,22 @@ export const RuleModal: React.FC<RuleModalProps> = ({
                       </label>
                     );
                   })}
+              </div>
+
+              {/* Live Normalized Date Range Feedback */}
+              <div className="mt-2 p-2 bg-indigo-50/70 border border-indigo-200/80 rounded-lg text-xs">
+                <div className="flex items-center gap-1 text-indigo-900 font-bold text-[11px] mb-0.5">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span>Rentang Tanggal Efektif (Ternormalisasi):</span>
+                </div>
+                <p className="text-[11px] text-indigo-950 font-semibold">
+                  {formatDateRangesSummary(normalizedDateRanges)}
+                </p>
+                {periodIds.length > 1 && (
+                  <p className="text-[10px] text-indigo-700 mt-0.5">
+                    *Tumpukan tanggal dari {periodIds.length} preset digabungkan secara otomatis tanpa duplikasi sesi.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -501,157 +501,6 @@ export const RuleModal: React.FC<RuleModalProps> = ({
                 Rule is Active in Timetable
               </label>
             </div>
-          </div>
-
-          {/* RULE EXCEPTIONS SECTION - Shifted Below Notes with Small Checkbox Toggle */}
-          <div className="pt-2 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <label
-                htmlFor="modal-toggle-exceptions-checkbox"
-                className="flex items-center gap-2 text-xs font-medium text-slate-700 hover:text-slate-900 cursor-pointer select-none"
-              >
-                <input
-                  id="modal-toggle-exceptions-checkbox"
-                  type="checkbox"
-                  checked={showExceptions}
-                  onChange={(e) => setShowExceptions(e.target.checked)}
-                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
-                />
-                <span className="flex items-center gap-1.5 font-semibold text-slate-800">
-                  <Zap className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Rule Exceptions (Special Period Overrides)</span>
-                </span>
-                {exceptions.length > 0 && (
-                  <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-full border border-amber-200">
-                    {exceptions.length} aktif
-                  </span>
-                )}
-              </label>
-
-              {showExceptions && (
-                <button
-                  type="button"
-                  id="modal-add-exception-btn"
-                  onClick={addException}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-white border border-amber-300 text-amber-900 rounded-md hover:bg-amber-100 shadow-2xs transition-colors cursor-pointer shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Exception</span>
-                </button>
-              )}
-            </div>
-
-            {showExceptions && (
-              <div className="mt-2.5 p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-3">
-                <p className="text-[11px] text-amber-800/90">
-                  Override Session, Room, or Teacher for specific periods (e.g. Science in Session 1, except Period 3 which is in Session 3).
-                </p>
-
-                {exceptions.length === 0 ? (
-                  <p className="text-xs text-amber-700/70 italic py-1">
-                    No exceptions added. The primary session ({db.sessions.find((s) => s.id === sessionId)?.name || 'Session'}) and room apply to all selected periods.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {exceptions.map((exc, idx) => (
-                      <div
-                        key={exc.id}
-                        className="p-3 bg-white rounded-lg border border-amber-200/90 shadow-2xs space-y-2.5"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-amber-900">
-                            Exception #{idx + 1}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => removeException(idx)}
-                            className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              When Period is:
-                            </label>
-                            <select
-                              value={exc.periodId}
-                              onChange={(e) => updateException(idx, { periodId: e.target.value })}
-                              className="w-full text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1.5 font-medium"
-                            >
-                              {periodIds.map((pid) => (
-                                <option key={pid} value={pid}>
-                                  {db.periods.find((p) => p.id === pid)?.name || pid}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-[11px] font-bold text-indigo-700 mb-1">
-                              Override Session:
-                            </label>
-                            <select
-                              value={exc.overrideSessionId || ''}
-                              onChange={(e) =>
-                                updateException(idx, {
-                                  overrideSessionId: e.target.value || undefined
-                                })
-                              }
-                              className="w-full text-xs bg-indigo-50/50 border border-indigo-200 rounded px-2 py-1.5 font-medium text-indigo-900"
-                            >
-                              <option value="">(Keep Base Session)</option>
-                              {db.sessions
-                                .slice()
-                                .sort((a, b) => a.order - b.order)
-                                .map((s) => (
-                                  <option key={s.id} value={s.id}>
-                                    {s.name}
-                                  </option>
-                                ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Override Room (Optional):
-                            </label>
-                            <select
-                              value={exc.overrideRoomId || ''}
-                              onChange={(e) =>
-                                updateException(idx, {
-                                  overrideRoomId: e.target.value || undefined
-                                })
-                              }
-                              className="w-full text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1.5 font-medium"
-                            >
-                              <option value="">(Keep Base Room)</option>
-                              {db.rooms.map((r) => (
-                                <option key={r.id} value={r.id}>
-                                  {r.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        <div>
-                          <input
-                            type="text"
-                            placeholder="Reason / Note (e.g. Afternoon computer-assisted lab)"
-                            value={exc.note || ''}
-                            onChange={(e) => updateException(idx, { note: e.target.value })}
-                            className="w-full text-xs bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-slate-700 placeholder:text-slate-400"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Footer Actions */}

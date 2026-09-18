@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { DatabaseState, DayOfWeek, ScheduleRule } from '../../types';
 import { FixedBlockSubGrid } from './FixedBlockSubGrid';
 import { computeResolvedSlots } from '../../utils/scheduleEngine';
+import { doesIntersectRange } from '../../utils/dateNormalizer';
 import { GraduationCap, Edit3, PlusCircle } from 'lucide-react';
 
 interface AdminEditGridProps {
@@ -37,16 +38,22 @@ export const AdminEditGrid: React.FC<AdminEditGridProps> = ({
 
   // Resolved slots
   const allResolvedSlots = useMemo(() => {
-    return computeResolvedSlots(db.rules);
-  }, [db.rules]);
+    return computeResolvedSlots(db.rules, db.periods);
+  }, [db.rules, db.periods]);
 
   // Filter slots by selected period
   const activeSlots = useMemo(() => {
     if (selectedPeriodId && selectedPeriodId !== 'all') {
+      const targetP = db.periods.find((p) => p.id === selectedPeriodId);
+      if (targetP && targetP.startDate && targetP.endDate) {
+        return allResolvedSlots.filter((s) =>
+          doesIntersectRange(s.dateRanges || [], targetP.startDate, targetP.endDate)
+        );
+      }
       return allResolvedSlots.filter((s) => s.periodId === selectedPeriodId);
     }
     return allResolvedSlots;
-  }, [allResolvedSlots, selectedPeriodId]);
+  }, [allResolvedSlots, selectedPeriodId, db.periods]);
 
   // Pre-index slots by `${day}_${classId}_${sessionId}`
   const slotIndex = useMemo(() => {
@@ -62,7 +69,7 @@ export const AdminEditGrid: React.FC<AdminEditGridProps> = ({
   const legendSubjects = useMemo(() => {
     return db.subjects.map((s) => ({
       id: s.id,
-      label: s.code || s.name,
+      label: s.name || s.code,
       color: s.color || '#4F46E5'
     }));
   }, [db.subjects]);

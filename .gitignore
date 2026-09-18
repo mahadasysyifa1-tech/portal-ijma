@@ -6,10 +6,3 @@ coverage/
 *.log
 .env*
 !.env.example
-data/
-package-lock.json
-repomix-output.xml
-repomix/
-bun.lock
-data/
-public/

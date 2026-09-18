@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -14,12 +14,18 @@ import {
   CheckCircle2,
   HelpCircle,
   FileSpreadsheet,
-  AlertTriangle
+  AlertTriangle,
+  Users,
+  DoorOpen,
+  Pencil,
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import { DatabaseState, KaldikEvent, DayOfWeek, ResolvedSlot, Period } from '../../types';
 import { computeResolvedSlots } from '../../utils/scheduleEngine';
+import { isDateInRanges } from '../../utils/dateNormalizer';
 import { KaldikEventModal } from './KaldikEventModal';
-import { KaldikDaySummaryModal } from './KaldikDaySummaryModal';
+import { FixedBlockSubGrid, FixedBlockHeaderGrid } from '../schedule/FixedBlockSubGrid';
 
 interface KaldikViewProps {
   db: DatabaseState;
@@ -32,6 +38,8 @@ const INDONESIAN_MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ];
+
+const INDONESIAN_DAYS = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
 const WEEKDAY_COLUMNS: { name: string; day: DayOfWeek; isWeekend?: boolean }[] = [
   { name: 'Senin', day: 'Monday' },
@@ -67,18 +75,44 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
   // Filters
   const [selectedPeriodFilter, setSelectedPeriodFilter] = useState<string>('all');
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState<boolean>(false);
 
   // Modals state
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<KaldikEvent | null>(null);
   const [eventModalDefaultDate, setEventModalDefaultDate] = useState<string | undefined>(undefined);
 
-  const [selectedDaySummaryDate, setSelectedDaySummaryDate] = useState<string | null>(null);
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
+    return '2026-09-16';
+  });
+
+  // Auto-sync selectedDateStr if month or year changes and selected date is outside current month
+  useEffect(() => {
+    const parts = selectedDateStr.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      if (y !== currentYear || m !== currentMonth) {
+        setSelectedDateStr(`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`);
+      }
+    }
+  }, [currentYear, currentMonth, selectedDateStr]);
+
+  // Lookup maps for fast access
+  const subjectMap = useMemo(() => new Map(db.subjects.map((s) => [s.id, s])), [db.subjects]);
+  const teacherMap = useMemo(() => new Map(db.teachers.map((t) => [t.id, t])), [db.teachers]);
+  const roomMap = useMemo(() => new Map(db.rooms.map((r) => [r.id, r])), [db.rooms]);
+  const classMap = useMemo(() => new Map(db.classes.map((c) => [c.id, c])), [db.classes]);
+  const sessionMap = useMemo(() => new Map(db.sessions.map((s) => [s.id, s])), [db.sessions]);
+  const sortedSessions = useMemo(() => [...db.sessions].sort((a, b) => a.order - b.order), [db.sessions]);
+  const sortedClasses = useMemo(() => {
+    return [...db.classes].sort((a, b) => (a.grade || 0) - (b.grade || 0) || a.name.localeCompare(b.name));
+  }, [db.classes]);
 
   // Compute resolved slots for class timetable rules
   const allResolvedSlots = useMemo(() => {
-    return computeResolvedSlots(db.rules);
-  }, [db.rules]);
+    return computeResolvedSlots(db.rules, db.periods);
+  }, [db.rules, db.periods]);
 
   // All events list from database
   const events = useMemo(() => {
@@ -223,23 +257,27 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
       });
 
       // Filter class slots scheduled on this weekday and period:
-      // Sessions can strictly ONLY occur on dates that fall within an active academic period!
-      // If a date has no active period (or falls outside the selected period filter),
-      // classSlots MUST be empty ([]) according to the scheduling rules.
+      // Sessions can strictly ONLY occur on dates that fall within an active date range!
+      // If a date falls outside the selected period filter, classSlots MUST be empty.
       let classSlots: ResolvedSlot[] = [];
 
-      const applicablePeriods = selectedPeriodFilter !== 'all'
-        ? activePeriods.filter((p) => p.id === selectedPeriodFilter)
-        : activePeriods;
+      const targetPeriod = selectedPeriodFilter !== 'all'
+        ? (db.periods || []).find((p) => p.id === selectedPeriodFilter)
+        : null;
 
-      if (applicablePeriods.length > 0) {
-        const activePids = applicablePeriods.map((p) => p.id);
-        classSlots = allResolvedSlots.filter(
-          (slot) => slot.day === dayOfWeek && activePids.includes(slot.periodId)
-        );
+      const isDateInFilter = !targetPeriod || !targetPeriod.startDate || !targetPeriod.endDate ||
+        (dateStr >= targetPeriod.startDate && dateStr <= targetPeriod.endDate);
 
-        // Hardening (Fix 4): RuleId dedup step to defend against future period overlaps
-        // so that the same rule isn't counted twice for one calendar date
+      if (isDateInFilter) {
+        classSlots = allResolvedSlots.filter((slot) => {
+          if (slot.day !== dayOfWeek) return false;
+          if (slot.dateRanges && slot.dateRanges.length > 0) {
+            return isDateInRanges(dateStr, slot.dateRanges);
+          }
+          return true;
+        });
+
+        // RuleId dedup step: ensure no duplicate rule slot on the same calendar date
         const seenRuleIds = new Set<string>();
         classSlots = classSlots.filter((slot) => {
           if (!slot.ruleId) return true;
@@ -351,189 +389,205 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
     };
   }, [calendarDays]);
 
-  // Selected Day data for summary modal
+  // Selected Day data for persistent view below calendar
   const selectedDayData = useMemo(() => {
-    if (!selectedDaySummaryDate) return null;
-    const found = calendarDays.find((d) => d.dateStr === selectedDaySummaryDate);
-    if (!found) return null;
-    return found;
-  }, [selectedDaySummaryDate, calendarDays]);
+    const found = calendarDays.find((d) => d.dateStr === selectedDateStr && d.isCurrentMonth);
+    if (found) return found;
+    return calendarDays.find((d) => d.isCurrentMonth) || null;
+  }, [selectedDateStr, calendarDays]);
+
+  const sortedDaySlots = useMemo(() => {
+    if (!selectedDayData) return [];
+    return [...selectedDayData.classSlots].sort((a, b) => {
+      const sesA = sessionMap.get(a.sessionId)?.order ?? 99;
+      const sesB = sessionMap.get(b.sessionId)?.order ?? 99;
+      if (sesA !== sesB) return sesA - sesB;
+      const clsA = classMap.get(a.classId)?.name || '';
+      const clsB = classMap.get(b.classId)?.name || '';
+      return clsA.localeCompare(clsB);
+    });
+  }, [selectedDayData, sessionMap, classMap]);
+
+  const formattedSelectedDate = useMemo(() => {
+    if (!selectedDayData) return '';
+    const [yStr, mStr, dStr] = selectedDayData.dateStr.split('-');
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10) - 1;
+    const d = parseInt(dStr, 10);
+    const dateObj = new Date(y, m, d);
+    const dayName = INDONESIAN_DAYS[dateObj.getDay()];
+    return `${dayName}, ${d} ${INDONESIAN_MONTHS[m]} ${y}`;
+  }, [selectedDayData]);
 
   return (
     <div className="space-y-4">
-      {/* Top Header & Toolbar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      {/* Top Header & Toolbar (Simplified & Clean) */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Left Title & Status */}
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
-              <CalendarDays className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
+              <CalendarDays className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-900">
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">
                   Kalender Pendidikan (Kaldik)
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                   IJMA 2026/2027
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Ringkasan bulanan kegiatan akademik, masa KBM resmi, libur ma’had, dan asesmen evaluasi.
+              <p className="text-xs text-slate-500 hidden sm:block">
+                Ringkasan kegiatan akademik, masa KBM resmi, libur ma’had, dan asesmen evaluasi.
               </p>
             </div>
           </div>
 
-          {/* Right Action Controls */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {/* Period Filter Dropdown */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
-              <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <select
-                value={selectedPeriodFilter}
-                onChange={(e) => setSelectedPeriodFilter(e.target.value)}
-                className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-xs"
+          {/* Month Navigation & Toolbar (Simple & Compact) */}
+          <div className="flex items-center gap-1.5 self-start sm:self-auto flex-nowrap whitespace-nowrap">
+            <div className="inline-flex items-center bg-slate-50 border border-slate-200 rounded-lg p-0.5 shadow-2xs">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="p-1 text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-colors cursor-pointer"
+                title="Bulan Sebelumnya"
               >
-                <option value="all">Semua Periode</option>
-                {db.periods.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center text-xs font-bold text-slate-800">
+                <select
+                  value={currentMonth}
+                  onChange={(e) => setCurrentMonth(Number(e.target.value))}
+                  className="bg-transparent text-xs font-bold text-slate-800 px-1.5 py-1 cursor-pointer focus:outline-none hover:text-slate-900"
+                >
+                  {INDONESIAN_MONTHS.map((mName, idx) => (
+                    <option key={mName} value={idx}>
+                      {mName}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={currentYear}
+                  onChange={(e) => setCurrentYear(Number(e.target.value))}
+                  className="bg-transparent text-xs font-bold text-slate-800 pr-1.5 py-1 cursor-pointer focus:outline-none hover:text-slate-900"
+                >
+                  {[2025, 2026, 2027, 2028].map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="p-1 text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-colors cursor-pointer"
+                title="Bulan Berikutnya"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-
-            {/* Event Type Filter */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
-              <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <select
-                value={eventTypeFilter}
-                onChange={(e) => setEventTypeFilter(e.target.value)}
-                className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-xs"
-              >
-                <option value="all">Semua Kategori</option>
-                <option value="kbm">Hanya KBM</option>
-                <option value="holiday">Hanya Libur</option>
-                <option value="exam">Hanya Ujian</option>
-                <option value="activity">Hanya Agenda</option>
-              </select>
-            </div>
-
-            {/* Primary Action Button: "Event Baru" */}
-            <button
-              type="button"
-              id="kaldik-add-event-btn"
-              onClick={() => {
-                setEditingEvent(null);
-                setEventModalDefaultDate(
-                  `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`
-                );
-                setIsEventModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-2xs transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Event Baru</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Navigation & Month Selector Bar */}
-        <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePrevMonth}
-              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors cursor-pointer"
-              title="Bulan Sebelumnya"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center gap-1.5">
-              <select
-                value={currentMonth}
-                onChange={(e) => setCurrentMonth(Number(e.target.value))}
-                className="text-sm font-black text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                {INDONESIAN_MONTHS.map((mName, idx) => (
-                  <option key={mName} value={idx}>
-                    {mName}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={currentYear}
-                onChange={(e) => setCurrentYear(Number(e.target.value))}
-                className="text-sm font-black text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                {[2025, 2026, 2027, 2028].map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleNextMonth}
-              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors cursor-pointer"
-              title="Bulan Berikutnya"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
 
             <button
               type="button"
               onClick={handleToday}
-              className="px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer"
+              className="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
             >
-              Hari Ini
+              Hari<br/>Ini
             </button>
-          </div>
 
-          {/* Monthly KPI Stats Strip */}
-          <div className="flex items-center gap-3 text-xs overflow-x-auto pb-1 sm:pb-0">
-            <div className="flex items-center gap-1.5 text-amber-900 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg">
-              <GraduationCap className="w-3.5 h-3.5 text-amber-600" />
-              <span className="font-bold">{monthlyStats.kbmDaysCount}</span>
-              <span className="text-[11px] text-amber-800">Hari KBM</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 text-rose-900 bg-rose-50 border border-rose-200/80 px-2.5 py-1 rounded-lg">
-              <span className="w-2 h-2 rounded-full bg-rose-500" />
-              <span className="font-bold">{monthlyStats.holidayCount}</span>
-              <span className="text-[11px] text-rose-800">Hari Libur</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 text-indigo-900 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-lg">
-              <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="font-bold">{monthlyStats.totalSessions}</span>
-              <span className="text-[11px] text-indigo-800">Sesi Pelajaran</span>
-            </div>
+            {/* Filter Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors cursor-pointer shadow-2xs ${
+                showFilters || selectedPeriodFilter !== 'all' || eventTypeFilter !== 'all'
+                  ? 'bg-amber-50 border-amber-300 text-amber-900'
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+              title="Filter Event & Agenda"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Filter</span>
+              {(selectedPeriodFilter !== 'all' || eventTypeFilter !== 'all') && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Active Periods Banner in this Month */}
-        {periodsInMonth.length > 0 && (
-          <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-amber-600" />
-              <span>Periode Berjalan:</span>
-            </span>
-            {periodsInMonth.map((p) => (
-              <span
-                key={p.id}
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200"
+        {/* Collapsible / Simplified Filters Row */}
+        {showFilters && (
+          <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {/* Simplified Period Filter */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
+                <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <select
+                  value={selectedPeriodFilter}
+                  onChange={(e) => setSelectedPeriodFilter(e.target.value)}
+                  className="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer text-xs"
+                >
+                  <option value="all">Semua Periode</option>
+                  {db.periods.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Simplified Event Category Filter */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
+                <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <select
+                  value={eventTypeFilter}
+                  onChange={(e) => setEventTypeFilter(e.target.value)}
+                  className="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer text-xs"
+                >
+                  <option value="all">Semua Kategori</option>
+                  <option value="kbm">Hanya KBM</option>
+                  <option value="holiday">Hanya Libur</option>
+                  <option value="exam">Hanya Ujian</option>
+                  <option value="activity">Hanya Agenda</option>
+                </select>
+              </div>
+
+              {(selectedPeriodFilter !== 'all' || eventTypeFilter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPeriodFilter('all');
+                    setEventTypeFilter('all');
+                  }}
+                  className="text-xs text-amber-700 hover:text-amber-800 underline font-medium cursor-pointer ml-1"
+                >
+                  Reset Filter
+                </button>
+              )}
+            </div>
+
+            {isAdmin && (
+              <button
+                type="button"
+                id="kaldik-add-event-btn"
+                onClick={() => {
+                  setEditingEvent(null);
+                  setEventModalDefaultDate(
+                    `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`
+                  );
+                  setIsEventModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-2xs transition-colors cursor-pointer"
               >
-                <span>{p.name}</span>
-                <span className="text-[10px] text-amber-700 font-mono">
-                  ({p.startDate} s.d. {p.endDate})
-                </span>
-              </span>
-            ))}
+                <Plus className="w-3.5 h-3.5" />
+                <span>Event Baru</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -566,7 +620,7 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
                 key={`${d.dateStr}-${index}`}
                 onClick={() => {
                   if (d.isCurrentMonth) {
-                    setSelectedDaySummaryDate(d.dateStr);
+                    setSelectedDateStr(d.dateStr);
                   }
                 }}
                 className={`min-h-[120px] p-2 border-r border-slate-200/70 last:border-r-0 relative group transition-colors flex flex-col justify-between ${
@@ -575,7 +629,13 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
                     : isWeekend
                     ? 'bg-slate-50/30 hover:bg-amber-50/40 cursor-pointer'
                     : 'bg-white hover:bg-indigo-50/30 cursor-pointer'
-                } ${d.isToday ? 'ring-2 ring-inset ring-amber-500 bg-amber-50/20' : ''}`}
+                } ${
+                  d.dateStr === selectedDateStr
+                    ? 'ring-2 ring-inset ring-amber-500 bg-amber-50/40 shadow-xs z-1'
+                    : d.isToday
+                    ? 'ring-1 ring-inset ring-amber-400/80 bg-amber-50/15'
+                    : ''
+                }`}
               >
                 {/* Cell Header: Day number & Quick Add */}
                 <div>
@@ -619,18 +679,6 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
                       </button>
                     )}
                   </div>
-
-                  {/* KBM Period Indicator Pill */}
-                  {d.isCurrentMonth && isKbmActive && !holidayEvent && (
-                    <div className="mb-1">
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100/90 text-amber-900 border border-amber-300/80 w-full truncate">
-                        <GraduationCap className="w-2.5 h-2.5 text-amber-700 shrink-0" />
-                        <span className="truncate">
-                          {d.activePeriods[0]?.name ? `KBM: ${d.activePeriods[0].name}` : 'KBM Aktif'}
-                        </span>
-                      </span>
-                    </div>
-                  )}
 
                   {/* Event Badges */}
                   <div className="space-y-1">
@@ -695,6 +743,411 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
         </div>
       </div>
 
+      {/* Super Compact Legend & Monthly Stats Strip */}
+      <div className="bg-white rounded-xl border border-slate-200/90 px-3.5 py-2 shadow-2xs flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-slate-500">
+        {/* Left: Title + Legend */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
+            Keterangan & Statistik Bulan {INDONESIAN_MONTHS[currentMonth]}:
+          </span>
+        </div>
+
+        {/* Right: Monthly Stats */}
+        <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2">
+          <span className="inline-flex items-center gap-1 text-[11px]">
+            <span className="w-2 h-2 rounded-full bg-rose-500" />Libur
+          </span>
+          <span className="inline-flex items-center gap-1 text-[11px]">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />KBM
+          </span>
+          <span className="inline-flex items-center gap-1 text-[11px]">
+            <span className="w-2 h-2 rounded-full bg-indigo-500" />Ujian
+          </span>
+          <span className="inline-flex items-center gap-1 text-[11px]">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />Agenda
+          </span>
+          <span className="inline-flex items-center gap-1 text-[11px]">
+            <span className="w-2 h-2 rounded-xs border-2 border-amber-500" />Hari Ini
+          </span>
+          <span className="font-semibold text-slate-800">{monthlyStats.kbmDaysCount} Hari KBM</span>
+          <span>•</span>
+          <span className="font-semibold text-rose-600">{monthlyStats.holidayCount} Hari Libur</span>
+          <span>•</span>
+          <span className="font-semibold text-indigo-600">{monthlyStats.totalSessions} Sesi Pelajaran</span>
+          {periodsInMonth.length > 0 && (
+            <>
+              <span>•</span>
+              <span className="font-medium text-amber-800">
+                Periode: {periodsInMonth.map((p) => p.name).join(', ')}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Persistent Day Detail View (Below Legend & Stats) */}
+      {selectedDayData && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+          {/* Header of Persistent Day View */}
+          <div className="px-4 sm:px-5 py-3.5 border-b border-slate-200 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex flex-col items-center justify-center font-bold shadow-xs shrink-0">
+                <span className="text-[10px] uppercase font-semibold leading-tight">
+                  {selectedDayData.dayNumber}
+                </span>
+                <span className="text-[11px] font-bold leading-none">
+                  {INDONESIAN_MONTHS[currentMonth].slice(0, 3)}
+                </span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                    Rincian Tanggal: {formattedSelectedDate}
+                  </h3>
+                  {selectedDayData.isToday && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                      Hari Ini
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
+                  {selectedDayData.activePeriods.length > 0 ? (
+                    selectedDayData.activePeriods.map((p) => (
+                      <span
+                        key={p.id}
+                        className="inline-flex items-center gap-1 font-semibold text-amber-800"
+                      >
+                        <Sparkles className="w-3 h-3 text-amber-600" />
+                        <span>{p.name} ({p.startDate} s.d. {p.endDate})</span>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-slate-400">Di luar rentang periode KBM aktif</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingEvent(null);
+                  setEventModalDefaultDate(selectedDayData.dateStr);
+                  setIsEventModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-2xs transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Event Tanggal Ini</span>
+              </button>
+            )}
+          </div>
+
+          <div className="p-4 sm:p-5 space-y-6">
+            {/* 1. Agenda & Event Kaldik Section */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <CalendarDays className="w-4 h-4 text-amber-600" />
+                  <span>Agenda &amp; Event Kaldik ({selectedDayData.events.length})</span>
+                </h4>
+              </div>
+
+              {selectedDayData.events.length === 0 ? (
+                <div className="p-3.5 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center">
+                  <p className="text-xs text-slate-500 font-medium">
+                    Tidak ada agenda atau event khusus pada tanggal ini.
+                  </p>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingEvent(null);
+                        setEventModalDefaultDate(selectedDayData.dateStr);
+                        setIsEventModalOpen(true);
+                      }}
+                      className="mt-1.5 text-xs font-bold text-amber-700 hover:text-amber-800 underline cursor-pointer"
+                    >
+                      + Tambahkan Event Baru
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedDayData.events.map((evt) => {
+                    const isKbmMissingPeriod = Boolean(
+                      evt.isKbm && (!evt.periodId || !db.periods.some((p) => p.id === evt.periodId))
+                    );
+
+                    return (
+                      <div
+                        key={evt.id}
+                        className={`p-3 rounded-xl border bg-white shadow-2xs flex items-start justify-between gap-3 transition-colors hover:border-slate-300 ${
+                          isKbmMissingPeriod ? 'border-dashed border-amber-400 bg-amber-50/40' : ''
+                        }`}
+                        style={{ borderLeftWidth: '4px', borderLeftColor: evt.color || '#F59E0B' }}
+                      >
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-slate-900">{evt.title}</span>
+                            {evt.isKbm && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                                KBM Resmi
+                              </span>
+                            )}
+                            {isKbmMissingPeriod && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-dashed border-amber-400 flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3 text-amber-700" />
+                                Periode Rujukan Hilang
+                              </span>
+                            )}
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 capitalize">
+                              {evt.type}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span>{evt.isAllDay ? 'Sepanjang Hari' : `${evt.startTime} - ${evt.endTime}`}</span>
+                            </span>
+                            {evt.isRecurring && (
+                              <span className="text-amber-700 font-medium">
+                                • Berulang ({evt.repeatDetail || 'Mingguan'})
+                              </span>
+                            )}
+                          </div>
+
+                          {evt.description && (
+                            <p className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg mt-1 border border-slate-100">
+                              {evt.description}
+                            </p>
+                          )}
+                        </div>
+
+                        {isAdmin && (
+                          <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingEvent(evt);
+                                setIsEventModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-amber-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                              title="Edit Event"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteEvent(evt.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                              title="Hapus Event"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 2. Matriks Sesi Waktu (Table for the Relevant Day) */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-600" />
+                  <span>Matriks Sesi Waktu ({selectedDayData.dayOfWeek})</span>
+                </h4>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  {sortedClasses.length} kelas terdaftar • {selectedDayData.classSlots.length} sesi terisi
+                </span>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700">
+                        <th className="w-36 sm:w-44 px-3.5 py-2.5 border-r border-slate-200 align-middle">
+                          <div className="flex items-center gap-1.5 text-slate-600">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Sesi Waktu</span>
+                          </div>
+                        </th>
+                        <th className="p-2 text-slate-800 align-top">
+                          <div className="px-1.5 py-1 text-xs font-bold text-slate-800">
+                            Matriks Kelas per Sesi ({formattedSelectedDate})
+                          </div>
+                          <FixedBlockHeaderGrid classes={sortedClasses} />
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-xs">
+                      {sortedSessions.map((session, sIdx) => {
+                        return (
+                          <tr
+                            key={session.id}
+                            className={`hover:bg-slate-50/40 transition-colors ${
+                              sIdx === sortedSessions.length - 1 ? '' : ''
+                            }`}
+                          >
+                            {/* Left Column: Sesi Waktu */}
+                            <td className="px-3.5 py-3 bg-slate-50/70 border-r border-slate-200 align-top">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-bold text-slate-800">{session.name}</span>
+                                <span className="text-[10px] text-amber-700 font-mono font-bold">
+                                  #{session.order}
+                                </span>
+                              </div>
+                              <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                                {session.startTime} – {session.endTime}
+                              </div>
+                            </td>
+
+                            {/* Right Column: Matriks Kelas via FixedBlockSubGrid */}
+                            <td className="p-2 align-middle">
+                              <FixedBlockSubGrid
+                                count={sortedClasses.length}
+                                interactive={true}
+                                getStateFn={(classIndex) => {
+                                  const cls = sortedClasses[classIndex];
+                                  const slot = selectedDayData.classSlots.find(
+                                    (s) => s.sessionId === session.id && s.classId === cls.id
+                                  );
+
+                                  if (slot) {
+                                    const sub = slot.subjectId ? subjectMap.get(slot.subjectId) : undefined;
+                                    const tch = slot.teacherId ? teacherMap.get(slot.teacherId) : undefined;
+                                    const rm = slot.roomId ? roomMap.get(slot.roomId) : undefined;
+
+                                    return {
+                                      id: `${slot.ruleId}_${cls.id}`,
+                                      label: cls.name,
+                                      isFilled: true,
+                                      occupied: true,
+                                      color: sub?.color || '#4F46E5',
+                                      teacherColor: tch?.color || (tch ? '#0284C7' : undefined),
+                                      tooltip: `${cls.name}: ${sub?.name || 'Pelajaran'} (${tch?.panggilan || tch?.name || 'Pengampu'}) - ${rm?.name || 'Ruang'}`,
+                                      subjectName: sub?.name,
+                                      subjectCode: sub?.code,
+                                      teacherName: tch?.panggilan || tch?.name,
+                                      roomName: rm?.name,
+                                      hasException: slot.hasException,
+                                      ruleId: slot.ruleId,
+                                      slot
+                                    };
+                                  }
+
+                                  return {
+                                    id: `free_${session.id}_${cls.id}`,
+                                    label: cls.name,
+                                    isFilled: false,
+                                    occupied: false,
+                                    tooltip: `${cls.name}: Kosong (Tidak ada jadwal)`
+                                  };
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Jadwal Pelajaran Kelas Aktif (Moved entirely below the table as last element) */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-amber-600" />
+                  <span>Jadwal Pelajaran Kelas Aktif ({sortedDaySlots.length} Sesi Aktif)</span>
+                </h4>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Rincian daftar pelajaran hari {selectedDayData.dayOfWeek}
+                </span>
+              </div>
+
+              {sortedDaySlots.length === 0 ? (
+                <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center">
+                  <p className="text-xs text-slate-500 font-medium">
+                    {selectedDayData.activePeriods.length === 0
+                      ? `Tanggal ini berada di luar rentang periode KBM aktif, sehingga tidak ada sesi kelas terjadwal.`
+                      : `Tidak ada sesi pelajaran kelas yang dijadwalkan pada hari ini.`}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-slate-50/50 border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-200/70">
+                  {sortedDaySlots.map((slot, idx) => {
+                    const subject = subjectMap.get(slot.subjectId);
+                    const cls = classMap.get(slot.classId);
+                    const teacher = teacherMap.get(slot.teacherId);
+                    const room = roomMap.get(slot.roomId);
+                    const session = sessionMap.get(slot.sessionId);
+
+                    return (
+                      <div
+                        key={`${slot.ruleId}-${slot.sessionId}-${idx}`}
+                        className="p-3 bg-white hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-20 shrink-0">
+                            <span className="text-[10px] font-bold text-amber-800 block">
+                              {session?.name || `Sesi ${idx + 1}`}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block font-mono">
+                              {session?.startTime} - {session?.endTime}
+                            </span>
+                          </div>
+
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: subject?.color || '#F59E0B' }}
+                              />
+                              <span className="font-bold text-slate-900">
+                                {subject?.name || 'Mata Pelajaran'}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
+                                {cls?.name || 'Kelas'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3 h-3 text-slate-400" />
+                                <span>{teacher?.panggilan || teacher?.name || 'Guru'}</span>
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <DoorOpen className="w-3 h-3 text-slate-400" />
+                                <span>{room?.name || 'Ruang'}</span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {slot.hasException && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 self-start sm:self-center">
+                            Pengecualian Periode
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Event Add/Edit Modal */}
       <KaldikEventModal
         isOpen={isEventModalOpen}
@@ -705,30 +1158,6 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
         defaultDate={eventModalDefaultDate}
         periods={db.periods}
       />
-
-      {/* Day Details / Summary Modal */}
-      {selectedDayData && (
-        <KaldikDaySummaryModal
-          isOpen={Boolean(selectedDaySummaryDate)}
-          dateStr={selectedDayData.dateStr}
-          events={selectedDayData.events}
-          slots={selectedDayData.classSlots}
-          db={db}
-          onClose={() => setSelectedDaySummaryDate(null)}
-          onAddEvent={(dateStr) => {
-            setEditingEvent(null);
-            setEventModalDefaultDate(dateStr);
-            setIsEventModalOpen(true);
-          }}
-          onEditEvent={(evt) => {
-            setEditingEvent(evt);
-            setIsEventModalOpen(true);
-          }}
-          onDeleteEvent={(id) => {
-            handleDeleteEvent(id);
-          }}
-        />
-      )}
     </div>
   );
 };

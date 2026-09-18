@@ -1,0 +1,3265 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+The content has been processed where empty lines have been removed, content has been compressed (code blocks are separated by ⋮---- delimiter).
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Empty lines have been removed from all files
+- Content has been compressed - code blocks are separated by ⋮---- delimiter
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+public/
+  favicon.png
+  small_favicon.png
+src/
+  assets/
+    logo.ts
+  components/
+    database/
+      KaldikEventsDatabaseTab.tsx
+      MateriDatabaseTab.tsx
+      RulesDatabaseTab.tsx
+    directory/
+      SubjectsDirectory.tsx
+      TeachersDirectory.tsx
+    kaldik/
+      KaldikDaySummaryModal.tsx
+      KaldikEventModal.tsx
+      KaldikView.tsx
+    schedule/
+      AdminAuditGrid.tsx
+      AdminEditGrid.tsx
+      FixedBlockSubGrid.tsx
+      SingleEntryCell.tsx
+      WeekGridView.tsx
+    syllabus/
+      AdminScopeModal.tsx
+      SyllabusImporterModal.tsx
+    AdminLoginModal.tsx
+    CalendarView.tsx
+    ClassIcon.tsx
+    ConflictCenter.tsx
+    EntityManager.tsx
+    ExportImportView.tsx
+    Header.tsx
+    HomeTab.tsx
+    JournalView.tsx
+    RuleModal.tsx
+    RulesManager.tsx
+    UnifiedStudio.tsx
+  utils/
+    csvHelper.ts
+    kaldikValidation.ts
+    normalize.ts
+    pacingEngine.ts
+    routing.ts
+    scheduleEngine.ts
+    syllabusImporter.ts
+  App.tsx
+  index.css
+  main.tsx
+  types.ts
+.env.example
+.gitignore
+app-favicon.ico
+index.html
+metadata.json
+package.json
+README.md
+server.ts
+tsconfig.json
+vite.config.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/assets/logo.ts">
+/**
+ * IJMA Application Logo
+ * Points to the brand logo asset in the public directory.
+ */
+</file>
+
+<file path="src/components/database/KaldikEventsDatabaseTab.tsx">
+import React, { useState, useMemo } from 'react';
+import {
+  Calendar,
+  CalendarDays,
+  Clock,
+  Plus,
+  Search,
+  Filter,
+  RefreshCw,
+  Edit2,
+  Trash2,
+  AlertTriangle,
+  CheckCircle2,
+  Layers,
+  GraduationCap,
+  Sparkles,
+  BookOpen,
+  Coffee,
+  Sun
+} from 'lucide-react';
+import { DatabaseState, KaldikEvent, KaldikEventType, Period } from '../../types';
+import { KaldikEventModal } from '../kaldik/KaldikEventModal';
+⋮----
+interface KaldikEventsDatabaseTabProps {
+  db: DatabaseState;
+  onUpdateDb?: React.Dispatch<React.SetStateAction<DatabaseState>> | ((updater: (prev: DatabaseState) => DatabaseState) => void);
+  isAdmin?: boolean;
+  onOpenAdminLogin?: () => void;
+}
+⋮----
+function formatDateDisplay(dateStr: string): string
+⋮----
+function calculateDaysSpan(startStr: string, endStr: string): number
+⋮----
+// Filters
+⋮----
+// Modals state
+⋮----
+// Filtered events
+⋮----
+// Summary counts
+⋮----
+const handleOpenAdd = () =>
+⋮----
+const handleOpenEdit = (evt: KaldikEvent) =>
+⋮----
+const handleSaveEvent = (savedEvt: KaldikEvent) =>
+⋮----
+const handleConfirmDelete = () =>
+⋮----
+{/* Top Banner & Action */}
+⋮----
+{/* Quick Counters: Simple list */}
+⋮----
+{/* Filter Toolbar */}
+⋮----
+{/* Search */}
+⋮----
+onChange=
+⋮----
+{/* Reset Filters */}
+⋮----
+setSearch('');
+setFilterType('all');
+setFilterPeriod('all');
+setFilterRecurrence('all');
+⋮----
+{/* Dropdowns Row */}
+⋮----
+{/* Kategori Tipe */}
+⋮----
+{/* Terkait Periode */}
+⋮----
+{/* Pengulangan */}
+⋮----
+{/* Table Data */}
+⋮----
+{/* Warna preview */}
+⋮----
+{/* Judul & Deskripsi */}
+⋮----
+{/* Kategori Badge */}
+⋮----
+{/* Rentang Tanggal */}
+⋮----
+⋮----
+{/* Waktu / Jam */}
+⋮----
+{/* Pengulangan */}
+⋮----
+{/* Terkait Periode */}
+⋮----
+{/* Aksi */}
+⋮----
+{/* Kaldik Event Modal for Add/Edit */}
+</file>
+
+<file path="src/components/database/MateriDatabaseTab.tsx">
+import React, { useState, useMemo } from 'react';
+import {
+  DatabaseState,
+  SyllabusUnit,
+  Subject
+} from '../../types';
+import {
+  BookOpen,
+  Plus,
+  Edit2,
+  Trash2,
+  Search,
+  Download,
+  Upload,
+  Filter,
+  FileSpreadsheet,
+  Check,
+  X,
+  BookmarkCheck,
+  GraduationCap,
+  Layers,
+  ChevronDown
+} from 'lucide-react';
+import { exportSyllabusToCsv } from '../../utils/syllabusImporter';
+import { downloadCsvFile } from '../../utils/csvHelper';
+import { SyllabusImporterModal } from '../syllabus/SyllabusImporterModal';
+⋮----
+interface MateriDatabaseTabProps {
+  db: DatabaseState;
+  onUpdateDb: (updater: (prev: DatabaseState) => DatabaseState) => void;
+}
+⋮----
+// Form state for creating / editing
+⋮----
+// Filter units
+⋮----
+// Subject filter
+⋮----
+// Search filter
+⋮----
+// Statistics
+⋮----
+// Open modal to add new unit
+const handleOpenCreate = () =>
+⋮----
+// Open modal to edit unit
+const handleOpenEdit = (unit: SyllabusUnit) =>
+⋮----
+// Save form
+const handleSaveForm = (e: React.FormEvent) =>
+⋮----
+// Delete unit
+const handleDeleteUnit = (id: string, title: string) =>
+⋮----
+// Import handler
+const handleImportSyllabusUnits = (newUnits: SyllabusUnit[], mode: 'replace' | 'append') =>
+⋮----
+{/* Top Banner: Metrics & Controls */}
+⋮----
+const csv = exportSyllabusToCsv(syllabusUnits);
+downloadCsvFile(`silabus_materi_$
+⋮----
+{/* Quick Counters: Simple list */}
+⋮----
+{/* Simple Filter Bar */}
+⋮----
+onChange=
+⋮----
+setSearch('');
+setFilterSubject('all');
+⋮----
+{/* Materi Table */}
+⋮----
+{/* Urutan */}
+⋮----
+{/* Mapel */}
+⋮----
+{/* Bab / No */}
+⋮----
+{/* Pokok Bahasan */}
+⋮----
+{/* Pertemuan / Jam Target */}
+⋮----
+{/* Halaman */}
+⋮----
+{/* Aksi */}
+⋮----
+{/* Add / Edit Modal */}
+⋮----
+setIsCreating(false);
+setEditingUnit(null);
+⋮----
+{/* CSV Syllabus Importer Modal */}
+</file>
+
+<file path="src/components/database/RulesDatabaseTab.tsx">
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  DatabaseState,
+  ScheduleRule,
+  Period,
+  Subject,
+  Teacher,
+  ClassEntity,
+  Room,
+  Session
+} from '../../types';
+import {
+  Layers,
+  Plus,
+  Edit2,
+  Trash2,
+  Search,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  BookOpen,
+  Users,
+  DoorOpen,
+  Calendar,
+  CalendarDays,
+  Download,
+  Filter,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
+import { exportRulesToCsv, downloadCsvFile } from '../../utils/csvHelper';
+import { detectConflicts } from '../../utils/scheduleEngine';
+import { KaldikEventsDatabaseTab } from './KaldikEventsDatabaseTab';
+⋮----
+interface RulesDatabaseTabProps {
+  db: DatabaseState;
+  onUpdateDb?: React.Dispatch<React.SetStateAction<DatabaseState>> | ((updater: (prev: DatabaseState) => DatabaseState) => void);
+  onEditRule?: (rule: ScheduleRule) => void;
+  onAddRule?: () => void;
+  onToggleRuleActive?: (ruleId: string) => void;
+  onDeleteRule?: (ruleId: string) => void;
+  isAdmin?: boolean;
+  onOpenAdminLogin?: () => void;
+  initialSubView?: 'rules' | 'kaldik' | 'integrity';
+}
+⋮----
+// Sub-view mode: 'rules' (Aturan Jadwal KBM) vs 'kaldik' (Kaldik Events Database) vs 'integrity' (Diagnostik)
+⋮----
+// State for filters in Rules view
+⋮----
+// In-UI Confirmation state for deleting a rule (No window.confirm!)
+⋮----
+// Helper maps for fast relational lookups
+⋮----
+// Authoritative Conflict Detection & Data Integrity Diagnostics
+⋮----
+// 1. Conflict rule IDs from authoritative scheduleEngine
+⋮----
+// 2. Scan db.periods for overlapping date ranges
+⋮----
+// 3. Scan db.rules for missing or orphaned entity references
+⋮----
+// Filtered rules
+⋮----
+// Status filter
+⋮----
+// Day filter
+⋮----
+// Class filter
+⋮----
+// Teacher filter
+⋮----
+// Subject filter
+⋮----
+// Period filter
+⋮----
+// Search query
+⋮----
+// Statistics
+⋮----
+{/* Top Segmented Switcher: Rules vs Kaldik vs Integrity */}
+⋮----
+{/* VIEW 1: KALDIK EVENTS DATABASE */}
+⋮----
+{/* VIEW 2: INTEGRITY DIAGNOSTICS VIEW */}
+⋮----
+{/* Conflicts */}
+⋮----
+{/* Period overlaps */}
+⋮----
+{/* Orphaned rules */}
+⋮----
+{/* VIEW 3: RULES TABLE VIEW */}
+⋮----
+{/* Top Banner: Metrics & Quick Actions */}
+⋮----
+const csv = exportRulesToCsv(db);
+downloadCsvFile(`rules_$
+⋮----
+{/* Quick Counters: Simple list */}
+⋮----
+{/* Collapsible Panel 1: Data Integrity & Diagnostic Inspector */}
+⋮----
+{/* Conflicts list */}
+⋮----
+{/* Period overlaps */}
+⋮----
+{/* Collapsible Panel 2: Periods Overview & Cross-Reference */}
+⋮----
+{/* Filters Bar */}
+⋮----
+{/* Search Input */}
+⋮----
+onChange=
+⋮----
+{/* Reset Filters */}
+⋮----
+setSearch('');
+setFilterDay('all');
+setFilterClass('all');
+setFilterTeacher('all');
+setFilterSubject('all');
+setFilterPeriod('all');
+setFilterStatus('all');
+⋮----
+{/* Status Filter */}
+⋮----
+{/* Hari Filter */}
+⋮----
+{/* Program / Kelas Filter */}
+⋮----
+{/* Guru Filter */}
+⋮----
+{/* Mapel Filter */}
+⋮----
+{/* Periode / Fase Filter */}
+⋮----
+{/* Rules Data Table */}
+⋮----
+{/* Active Checkbox */}
+⋮----
+{/* Hari & Sesi */}
+⋮----
+{/* Mapel & Guru */}
+⋮----
+{/* Kelas & Ruang */}
+⋮----
+{/* Periode */}
+⋮----
+{/* Integritas */}
+⋮----
+{/* Actions */}
+⋮----
+{/* In-UI Confirmation Modal for Delete Rule (No window.confirm!) */}
+</file>
+
+<file path="src/components/directory/SubjectsDirectory.tsx">
+import React, { useState, useMemo } from 'react';
+import { DatabaseState, Subject } from '../../types';
+import {
+  BookOpen,
+  Search,
+  User,
+  DoorOpen,
+  Layers,
+  ArrowLeft,
+  Book,
+  FileText,
+  ShoppingCart,
+  ShoppingBag,
+  ExternalLink
+} from 'lucide-react';
+⋮----
+interface SubjectsDirectoryProps {
+  db: DatabaseState;
+  onBackToSchedule: () => void;
+  onSelectSubject: (subjectId: string) => void;
+}
+⋮----
+// Compute how many rules/sessions are scheduled for each subject
+⋮----
+{/* Top Header */}
+⋮----
+{/* Search */}
+⋮----
+onChange=
+⋮----
+{/* Cards Grid */}
+⋮----
+{/* Resource Links */}
+</file>
+
+<file path="src/components/directory/TeachersDirectory.tsx">
+import React, { useState, useMemo } from 'react';
+import { DatabaseState, Teacher } from '../../types';
+import { Users, Search, Mail, BookOpen, Clock, ArrowLeft } from 'lucide-react';
+⋮----
+interface TeachersDirectoryProps {
+  db: DatabaseState;
+  onBackToSchedule: () => void;
+  onSelectTeacherSchedule: (teacherId: string) => void;
+}
+⋮----
+// Compute teaching load per teacher
+⋮----
+{/* Top Header */}
+⋮----
+{/* Search */}
+⋮----
+onChange=
+⋮----
+{/* Teachers Grid */}
+⋮----
+{/* Subjects Taught */}
+</file>
+
+<file path="src/components/kaldik/KaldikDaySummaryModal.tsx">
+import React from 'react';
+import {
+  X,
+  Calendar,
+  Clock,
+  BookOpen,
+  Users,
+  DoorOpen,
+  GraduationCap,
+  Sparkles,
+  Plus,
+  Pencil,
+  Trash2,
+  CalendarDays,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
+import {
+  DatabaseState,
+  KaldikEvent,
+  ResolvedSlot,
+  DayOfWeek,
+  Subject,
+  ClassEntity,
+  Teacher,
+  Room,
+  Session
+} from '../../types';
+⋮----
+interface KaldikDaySummaryModalProps {
+  isOpen: boolean;
+  dateStr: string; // 'YYYY-MM-DD'
+  events: KaldikEvent[];
+  slots: ResolvedSlot[];
+  db: DatabaseState;
+  onClose: () => void;
+  onAddEvent: (dateStr: string) => void;
+  onEditEvent: (event: KaldikEvent) => void;
+  onDeleteEvent: (id: string) => void;
+}
+⋮----
+dateStr: string; // 'YYYY-MM-DD'
+⋮----
+// Find if date falls into any academic period
+⋮----
+// Maps for fast lookup
+⋮----
+// Sort slots by session order
+⋮----
+{/* Header */}
+⋮----
+{/* Content Body */}
+⋮----
+{/* Section 1: Events & Agenda */}
+⋮----
+{/* Section 2: Scheduled Class Sessions on this Day */}
+⋮----
+{/* Footer */}
+</file>
+
+<file path="src/components/kaldik/KaldikEventModal.tsx">
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Calendar,
+  Clock,
+  Repeat,
+  Layers,
+  Sparkles,
+  AlertTriangle,
+  Trash2,
+  Check,
+  CalendarDays,
+  GraduationCap
+} from 'lucide-react';
+import { KaldikEvent, KaldikEventType, Period, DayOfWeek } from '../../types';
+import { validateAndFitKbmPeriodDates } from '../../utils/kaldikValidation';
+⋮----
+interface KaldikEventModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (event: KaldikEvent) => void;
+  onDelete?: (id: string) => void;
+  initialEvent?: KaldikEvent | null;
+  defaultDate?: string;
+  periods: Period[];
+}
+⋮----
+export const KaldikEventModal: React.FC<KaldikEventModalProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  onDelete,
+  initialEvent,
+  defaultDate,
+  periods
+}) =>
+⋮----
+// Initialize or reset form
+⋮----
+// Fix 2: KBM events must resolve dates live from periods instead of stored snapshot
+⋮----
+// Handler for activating KBM mode
+const handleToggleKbm = (enableKbm: boolean) =>
+⋮----
+// If title is blank or generic, set to KBM
+⋮----
+// Auto fill period dates
+⋮----
+// Handler for period change in KBM mode
+const handleSelectPeriod = (pId: string) =>
+⋮----
+// Auto-fill dates from chosen period just like class rule form
+⋮----
+// Validate manual date inputs for KBM
+const handleDateChange = (type: 'start' | 'end', val: string) =>
+⋮----
+// If KBM mode, enforce period bounds validation
+⋮----
+// Clamp on blur if in KBM mode
+const handleDateBlur = () =>
+⋮----
+const handleToggleDay = (day: DayOfWeek) =>
+⋮----
+const handleSubmit = (e: React.FormEvent) =>
+⋮----
+// Strict validation for KBM
+⋮----
+{/* Header */}
+⋮----
+{/* Form Body */}
+⋮----
+{/* Event Title with Special "KBM" Quick Input */}
+⋮----
+{/* Special KBM quick toggle button */}
+⋮----
+onClick=
+⋮----
+onChange=
+⋮----
+{/* KBM Period Integration Box - Appears when isKbm is active */}
+⋮----
+{/* Quick Fill Button */}
+⋮----
+{/* Flagged warning if periodId missing or doesn't match any period */}
+⋮----
+{/* Validation Warning Alert */}
+⋮----
+{/* Category & Color row */}
+⋮----
+{/* All Day Toggle & Timing */}
+⋮----
+{/* Time inputs if not all day */}
+⋮----
+{/* Date Range Inputs */}
+⋮----
+{/* Recurring Events Toggle (unrelated to classrule) */}
+⋮----
+{/* Recurring Settings */}
+⋮----
+{/* Description */}
+⋮----
+{/* Footer Actions */}
+</file>
+
+<file path="src/components/kaldik/KaldikView.tsx">
+import React, { useState, useMemo } from 'react';
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Filter,
+  Sparkles,
+  Layers,
+  GraduationCap,
+  BookOpen,
+  CalendarDays,
+  Clock,
+  CheckCircle2,
+  HelpCircle,
+  FileSpreadsheet,
+  AlertTriangle
+} from 'lucide-react';
+import { DatabaseState, KaldikEvent, DayOfWeek, ResolvedSlot, Period } from '../../types';
+import { computeResolvedSlots } from '../../utils/scheduleEngine';
+import { KaldikEventModal } from './KaldikEventModal';
+import { KaldikDaySummaryModal } from './KaldikDaySummaryModal';
+⋮----
+interface KaldikViewProps {
+  db: DatabaseState;
+  onUpdateDb: React.Dispatch<React.SetStateAction<DatabaseState>>;
+  isAdmin?: boolean;
+  onOpenAdminLogin?: () => void;
+}
+⋮----
+export const KaldikView: React.FC<KaldikViewProps> = ({
+  db,
+  onUpdateDb,
+  isAdmin = true,
+  onOpenAdminLogin
+}) =>
+⋮----
+// Calendar View State: Year and Month (0-11)
+// Default to September 2026 to match initial sample data, or current date if in range
+⋮----
+const [currentMonth, setCurrentMonth] = useState<number>(8); // 8 is September (0-indexed)
+⋮----
+// Filters
+⋮----
+// Modals state
+⋮----
+// Compute resolved slots for class timetable rules
+⋮----
+// All events list from database
+⋮----
+// Navigation handlers
+const handlePrevMonth = () =>
+⋮----
+const handleNextMonth = () =>
+⋮----
+const handleToday = () =>
+⋮----
+// Check which periods intersect with this month
+⋮----
+// Generate calendar grid days for this month (starting on Monday)
+⋮----
+// First day of current month
+⋮----
+// Sunday is 0, Monday is 1 ... we want Monday to be index 0
+let startDayOfWeek = firstDay.getDay(); // 0 (Sun) to 6 (Sat)
+⋮----
+// Previous month filler days
+⋮----
+// Current month days
+⋮----
+// Filter active academic periods for this date
+⋮----
+// Filter events occurring on this date
+⋮----
+// If event type filter is active
+⋮----
+// Check period filter
+⋮----
+// Recurring event check
+⋮----
+// Standard range check: For KBM events, look up active date range live from db.periods
+⋮----
+// Filter class slots scheduled on this weekday and period:
+// Sessions can strictly ONLY occur on dates that fall within an active academic period!
+// If a date has no active period (or falls outside the selected period filter),
+// classSlots MUST be empty ([]) according to the scheduling rules.
+⋮----
+// Hardening (Fix 4): RuleId dedup step to defend against future period overlaps
+// so that the same rule isn't counted twice for one calendar date
+⋮----
+// Trailing days to fill 5 or 6 rows (multiple of 7)
+⋮----
+// Handle Event Saving
+const handleSaveEvent = (savedEvent: KaldikEvent) =>
+⋮----
+// Handle Event Deleting
+const handleDeleteEvent = (id: string) =>
+⋮----
+// Calculate monthly stats
+⋮----
+// Selected Day data for summary modal
+⋮----
+{/* Top Header & Toolbar */}
+⋮----
+{/* Left Title & Status */}
+⋮----
+{/* Right Action Controls */}
+⋮----
+{/* Period Filter Dropdown */}
+⋮----
+{/* Event Type Filter */}
+⋮----
+{/* Primary Action Button: "Event Baru" */}
+⋮----
+{/* Navigation & Month Selector Bar */}
+⋮----
+onChange=
+⋮----
+{/* Monthly KPI Stats Strip */}
+⋮----
+{/* Active Periods Banner in this Month */}
+⋮----
+{/* Main Month Calendar Grid */}
+⋮----
+{/* Days of Week Column Headers */}
+⋮----
+{/* Calendar Day Cells */}
+⋮----
+setSelectedDaySummaryDate(d.dateStr);
+⋮----
+{/* Cell Header: Day number & Quick Add */}
+⋮----
+{/* Quick add event button on cell hover */}
+⋮----
+e.stopPropagation();
+setEditingEvent(null);
+setEventModalDefaultDate(d.dateStr);
+setIsEventModalOpen(true);
+⋮----
+{/* Event Badges */}
+⋮----
+{/* Bottom Day Cell Summary: Timetable Lessons Count */}
+⋮----
+{/* Event Add/Edit Modal */}
+⋮----
+{/* Day Details / Summary Modal */}
+⋮----
+isOpen=
+⋮----
+onClose=
+⋮----
+setEventModalDefaultDate(dateStr);
+⋮----
+setEditingEvent(evt);
+⋮----
+handleDeleteEvent(id);
+</file>
+
+<file path="src/components/schedule/AdminAuditGrid.tsx">
+import React, { useMemo, useState } from 'react';
+import { DatabaseState, DayOfWeek, ScheduleRule } from '../../types';
+import { FixedBlockSubGrid } from './FixedBlockSubGrid';
+import { computeResolvedSlots } from '../../utils/scheduleEngine';
+import { Clock, AlertCircle, Grid3X3, Table, Layers, ChevronRight } from 'lucide-react';
+⋮----
+interface AdminAuditGridProps {
+  db: DatabaseState;
+  selectedPeriodId: string;
+  onEntryClick?: (data: any) => void;
+  onEditRule?: (rule: ScheduleRule) => void;
+}
+⋮----
+// Sorted sessions
+⋮----
+// Stably sorted classes
+⋮----
+// Lookup maps
+⋮----
+// Resolved slots
+⋮----
+// Filter slots by selected period
+⋮----
+// Pre-index slots by `${day}_${sessionId}_${classId}`
+⋮----
+// Legend subjects
+⋮----
+// Legend teachers (for chip border indicators)
+⋮----
+{/* Subview Toggle and Stats */}
+⋮----
+{/* Density notice if many classes */}
+⋮----
+{/* VIEW 1: Matrix View (Rows = Sessions, Cols = Days) */}
+⋮----
+{/* Session Header */}
+⋮----
+{/* Days: Fixed subgrid for all classes in this slot */}
+⋮----
+onBlockClick=
+⋮----
+// Get all scheduled sessions for this class on this day
+⋮----
+{/* Persistent Horizontal Legend Strip at the Bottom */}
+⋮----
+{/* Legend Row 1: Subjects */}
+⋮----
+{/* Free slot */}
+⋮----
+{/* Legend Row 2: Teachers */}
+</file>
+
+<file path="src/components/schedule/AdminEditGrid.tsx">
+import React, { useMemo } from 'react';
+import { DatabaseState, DayOfWeek, ScheduleRule } from '../../types';
+import { FixedBlockSubGrid } from './FixedBlockSubGrid';
+import { computeResolvedSlots } from '../../utils/scheduleEngine';
+import { GraduationCap, Edit3, PlusCircle } from 'lucide-react';
+⋮----
+interface AdminEditGridProps {
+  db: DatabaseState;
+  selectedPeriodId: string;
+  onOpenNewRuleForSlot: (day: DayOfWeek, periodId: string, sessionId: string, classId?: string) => void;
+  onEditRule: (rule: ScheduleRule) => void;
+}
+⋮----
+// Sorted sessions strictly by order
+⋮----
+// Stably sorted classes
+⋮----
+// Lookup maps
+⋮----
+// Resolved slots
+⋮----
+// Filter slots by selected period
+⋮----
+// Pre-index slots by `${day}_${classId}_${sessionId}`
+⋮----
+// Legend subjects
+⋮----
+{/* Persistent Horizontal Legend Strip & Instructions */}
+⋮----
+{/* Swatch for Free / Hollow */}
+⋮----
+{/* Swatches for each subject */}
+⋮----
+{/* Grid: rows = class-sections, columns = days */}
+⋮----
+{/* Class Header */}
+⋮----
+{/* Day Cells: Embedded sessions sorted by session order */}
+⋮----
+getStateFn=
+⋮----
+// Otherwise open new rule assignment dialog for this slot
+</file>
+
+<file path="src/components/schedule/FixedBlockSubGrid.tsx">
+import React from 'react';
+⋮----
+export interface FixedBlockState {
+  id: string;
+  label: string; // e.g. "10A" (for View 3) or "S1" (for View 4)
+  isFilled?: boolean;
+  occupied?: boolean; // backwards compatibility alias
+  color?: string; // color of subject if filled
+  teacherColor?: string; // color of teacher for chip border
+  tooltip: string;
+  subjectName?: string;
+  subjectCode?: string;
+  teacherName?: string;
+  roomName?: string;
+  hasException?: boolean;
+  ruleId?: string;
+  slot?: any;
+}
+⋮----
+label: string; // e.g. "10A" (for View 3) or "S1" (for View 4)
+⋮----
+occupied?: boolean; // backwards compatibility alias
+color?: string; // color of subject if filled
+teacherColor?: string; // color of teacher for chip border
+⋮----
+interface FixedBlockSubGridProps {
+  count: number;
+  getStateFn: (index: number) => FixedBlockState;
+  onBlockClick?: (index: number, state: FixedBlockState) => void;
+  interactive?: boolean;
+}
+⋮----
+export const FixedBlockSubGrid: React.FC<FixedBlockSubGridProps> = ({
+  count,
+  getStateFn,
+  onBlockClick,
+  interactive = false
+}) =>
+⋮----
+// Determine grid column layout based on class count
+⋮----
+// Solid colored block: Subject is background fill, Teacher is border frame color!
+⋮----
+onClick=
+⋮----
+{/* If ultra dense (lots of classes), show compact short label or color block only */}
+⋮----
+// Hollow / Outlined block: class-section is free at that slot (never omitted!)
+</file>
+
+<file path="src/components/schedule/SingleEntryCell.tsx">
+import React from 'react';
+import { ResolvedSlot, Subject, Teacher, Room, ClassEntity } from '../../types';
+import { ClassIcon } from '../ClassIcon';
+import { Video } from 'lucide-react';
+⋮----
+export interface SingleEntryCellConfig {
+  colorKey: 'subject' | 'class';
+  primaryField: 'subject' | 'class';
+  secondaryField: 'teacher' | 'subject';
+}
+⋮----
+export interface EntryFullData {
+  slot: ResolvedSlot;
+  subject?: Subject;
+  teacher?: Teacher;
+  room?: Room;
+  classEntity?: ClassEntity;
+  day: string;
+  sessionName: string;
+  sessionTime: string;
+  periodName: string;
+}
+⋮----
+interface SingleEntryCellProps {
+  entry?: EntryFullData | null;
+  config: SingleEntryCellConfig;
+  onEntryClick?: (data: EntryFullData) => void;
+}
+⋮----
+// Generate consistent pastel/distinct color for a class if colorKey is class
+⋮----
+'#0284C7', // Sky
+'#059669', // Emerald
+'#D97706', // Amber
+'#7C3AED', // Violet
+'#DB2777', // Pink
+'#4F46E5', // Indigo
+'#0D9488', // Teal
+'#EA580C', // Orange
+'#475569', // Slate
+'#9333EA', // Purple
+⋮----
+export function getClassColor(classId: string, index: number = 0): string
+⋮----
+// Empty cell: neutral background or blank, leave empty, don't label "Free", non-interactive
+⋮----
+// Title row (bold, colored) — subject name for Murid, class name for Guru
+⋮----
+// Detailed tooltip text
+⋮----
+// Student view mode: primary color is subject color
+</file>
+
+<file path="src/components/schedule/WeekGridView.tsx">
+import React, { useMemo } from 'react';
+import {
+  DatabaseState,
+  ResolvedSlot,
+  DayOfWeek,
+  ScheduleRule
+} from '../../types';
+import { SingleEntryCell, SingleEntryCellConfig, EntryFullData, getClassColor } from './SingleEntryCell';
+import { computeResolvedSlots } from '../../utils/scheduleEngine';
+import { Clock } from 'lucide-react';
+import { ClassIcon } from '../ClassIcon';
+⋮----
+interface WeekGridViewProps {
+  db: DatabaseState;
+  config: SingleEntryCellConfig;
+  selectedEntityId: string;
+  onSelectEntityId: (id: string) => void;
+  selectedPeriodId: string;
+  onEntryClick: (data: EntryFullData) => void;
+  onEditRule?: (rule: ScheduleRule) => void;
+  entityType: 'student_class' | 'teacher';
+}
+⋮----
+// Sorted sessions strictly by order
+⋮----
+// Lookup maps
+⋮----
+// All resolved slots
+⋮----
+// Filter slots for the selected single entity (either a specific class or a specific teacher)
+⋮----
+// Period filter: if a specific period is selected, match it
+⋮----
+// Map slots into (day, sessionId) -> EntryFullData
+⋮----
+// Legend items
+⋮----
+{/* Grid: rows = sessions, columns = days */}
+⋮----
+{/* Session Header Cell */}
+⋮----
+{/* Day Cells */}
+⋮----
+{/* Horizontal Legend Strip at the Bottom */}
+</file>
+
+<file path="src/components/syllabus/AdminScopeModal.tsx">
+import React, { useState, useMemo } from 'react';
+import { X, Layers, Check, RefreshCw, AlertCircle } from 'lucide-react';
+import { DatabaseState, SyllabusUnit, SyllabusScope } from '../../types';
+import { formatUnitDisplay, getScopedUnits } from '../../utils/pacingEngine';
+⋮----
+interface AdminScopeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  db: DatabaseState;
+  subjectId: string;
+  classSectionId: string;
+  onSaveScope: (scope: SyllabusScope | null) => void;
+}
+⋮----
+// Filter to that subject's units only, ordered by order
+⋮----
+// Existing scope for this (subject, class-section)
+⋮----
+const handleResetToDefault = () =>
+⋮----
+const handleSave = () =>
+⋮----
+// Remove scope override (default to full syllabus)
+⋮----
+{/* Header */}
+⋮----
+{/* Body */}
+⋮----
+{/* Default status indicator */}
+⋮----
+{/* Mode Toggle */}
+⋮----
+{/* Two Chapter Pickers: Start & End per specification */}
+⋮----
+{/* Start Picker */}
+⋮----
+{/* End Picker */}
+⋮----
+{/* Footer */}
+</file>
+
+<file path="src/components/syllabus/SyllabusImporterModal.tsx">
+import React, { useState, useRef } from 'react';
+import {
+  X,
+  Upload,
+  FileSpreadsheet,
+  Download,
+  AlertCircle,
+  CheckCircle2,
+  Table as TableIcon
+} from 'lucide-react';
+import { DatabaseState, SyllabusUnit } from '../../types';
+import { parseSyllabusCsv, getSampleSyllabusCsv } from '../../utils/syllabusImporter';
+import { formatUnitDisplay } from '../../utils/pacingEngine';
+⋮----
+interface SyllabusImporterModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  db: DatabaseState;
+  onImportUnits: (newUnits: SyllabusUnit[], mode: 'replace' | 'append') => void;
+}
+⋮----
+export const SyllabusImporterModal: React.FC<SyllabusImporterModalProps> = ({
+  isOpen,
+  onClose,
+  db,
+  onImportUnits
+}) =>
+⋮----
+const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) =>
+⋮----
+const doParse = (text: string, subId: string) =>
+⋮----
+const handleTextChange = (val: string) =>
+⋮----
+const handleDownloadSample = () =>
+⋮----
+const handleSave = () =>
+⋮----
+{/* Header */}
+⋮----
+{/* Body */}
+⋮----
+{/* Controls: Template download & Default subject */}
+⋮----
+onChange=
+⋮----
+{/* Upload Box */}
+⋮----
+onClick=
+⋮----
+{/* Raw CSV Textarea */}
+⋮----
+{/* Errors notice */}
+⋮----
+{/* Preview of Parsed Units */}
+⋮----
+{/* Mode Selector */}
+⋮----
+{/* Footer */}
+</file>
+
+<file path="src/components/AdminLoginModal.tsx">
+import React, { useState } from 'react';
+import { Lock, KeyRound, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+⋮----
+interface AdminLoginModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+⋮----
+const handleSubmit = (e: React.FormEvent) =>
+⋮----
+// Support common intuitive admin passwords for IJMA
+⋮----
+{/* Header */}
+⋮----
+{/* Form */}
+⋮----
+setPassword(e.target.value);
+setError('');
+</file>
+
+<file path="src/components/CalendarView.tsx">
+import React, { useState, useMemo } from 'react';
+import {
+  DatabaseState,
+  ScheduleConflict,
+  DayOfWeek,
+  ScheduleRule
+} from '../types';
+import { SingleEntryCellConfig, EntryFullData } from './schedule/SingleEntryCell';
+import { WeekGridView } from './schedule/WeekGridView';
+import { AdminAuditGrid } from './schedule/AdminAuditGrid';
+import {
+  GraduationCap,
+  Users,
+  Grid3X3,
+  Calendar as CalendarIcon,
+  CalendarDays,
+  X,
+  Clock,
+  DoorOpen,
+  Zap,
+  Lock,
+  Edit2,
+  Layers,
+  Video
+} from 'lucide-react';
+import { ClassIcon } from './ClassIcon';
+⋮----
+export enum ScheduleViewMode {
+  STUDENT_WEEK = 'STUDENT_WEEK',
+  TEACHER_WEEK = 'TEACHER_WEEK',
+  ADMIN_AUDIT = 'ADMIN_AUDIT'
+}
+⋮----
+interface CalendarViewProps {
+  db: DatabaseState;
+  onUpdateDb?: React.Dispatch<React.SetStateAction<DatabaseState>>;
+  conflicts: ScheduleConflict[];
+  onOpenNewRuleForSlot: (day: DayOfWeek, periodId: string, sessionId: string, classId?: string) => void;
+  onEditRule: (rule: ScheduleRule) => void;
+  onViewConflict: (conflict: ScheduleConflict) => void;
+  compact?: boolean;
+  isAdmin?: boolean;
+  onOpenAdminLogin?: () => void;
+  activeViewMode?: ScheduleViewMode;
+  onViewModeChange?: (mode: ScheduleViewMode) => void;
+  selectedClassId?: string;
+  onSelectClassId?: (id: string) => void;
+  selectedTeacherId?: string;
+  onSelectTeacherId?: (id: string) => void;
+  selectedPeriodId?: string;
+  onSelectPeriodId?: (id: string) => void;
+  showRules?: boolean;
+  onToggleRules?: (show: boolean) => void;
+}
+⋮----
+// Mode switcher between the 3 views: Murid, Guru, Semua
+⋮----
+const setViewMode = (mode: ScheduleViewMode) =>
+⋮----
+// Selected student / class section for View 1
+⋮----
+const setSelectedClassId = (id: string) =>
+⋮----
+// Selected teacher for View 2
+⋮----
+const setSelectedTeacherId = (id: string) =>
+⋮----
+// Academic period filter (shared across all views)
+⋮----
+const setSelectedPeriodId = (id: string) =>
+⋮----
+// Detail panel state for clicked single-entry cell (Views 1 & 2)
+⋮----
+// Rule lookup map
+⋮----
+// Config for View 1 (Murid)
+⋮----
+// Config for View 2 (Guru)
+⋮----
+{/* View Mode Bar & Compact Controls: Single Unified Toolbar */}
+⋮----
+{/* Mode Switcher Tabs: Murid, Guru, Semua */}
+⋮----
+{/* Compact Dynamic Selectors (Kelas / Guru & Periode) */}
+⋮----
+{/* Period Selector */}
+⋮----
+{/* Render Active View */}
+⋮----
+onEntryClick=
+⋮----
+{/* Rules Panel Toggle Button placed under legend */}
+⋮----
+{/* Detail Panel for clicked slot */}
+⋮----
+onEditRule(rule);
+setSelectedEntryData(null);
+</file>
+
+<file path="src/components/ClassIcon.tsx">
+import React from 'react';
+import {
+  GraduationCap,
+  BookOpen,
+  School,
+  Award,
+  Sparkles,
+  Users,
+  Compass,
+  Lightbulb,
+  Bookmark,
+  Star,
+  Landmark,
+  PenTool,
+  Flag,
+  Target,
+  Shield,
+  Heart,
+  Trophy,
+  Rocket,
+  Layers,
+  Globe,
+  LucideIcon
+} from 'lucide-react';
+⋮----
+export interface ClassIconPreset {
+  id: string;
+  name: string;
+  Icon: LucideIcon;
+}
+⋮----
+export const ClassIcon: React.FC<{
+  name?: string;
+  className?: string;
+}> = (
+⋮----
+export interface ClassIconPickerProps {
+  value?: string;
+  selected?: string;
+  onChange?: (iconId: string) => void;
+  onSelect?: (iconId: string) => void;
+}
+⋮----
+export const ClassIconPicker: React.FC<ClassIconPickerProps> = ({
+  value,
+  selected: propSelected,
+  onChange,
+  onSelect
+}) =>
+⋮----
+const handleSelect = (id: string) =>
+</file>
+
+<file path="src/components/ConflictCenter.tsx">
+import React from 'react';
+import {
+  ScheduleConflict,
+  DatabaseState,
+  ScheduleRule,
+  Subject,
+  Teacher,
+  Room,
+  ClassEntity,
+  Period,
+  Session
+} from '../types';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Users,
+  GraduationCap,
+  DoorOpen,
+  Calendar,
+  Clock,
+  ArrowRight,
+  Edit2,
+  XCircle,
+  Zap,
+  ArrowLeft
+} from 'lucide-react';
+⋮----
+interface ConflictCenterProps {
+  conflicts: ScheduleConflict[];
+  db: DatabaseState;
+  onEditRule: (rule: ScheduleRule) => void;
+  onToggleRuleActive: (ruleId: string, active: boolean) => void;
+  onNavigateToCalendar: () => void;
+}
+⋮----
+const getTypeIcon = (type: string) =>
+⋮----
+{/* Header Banner */}
+⋮----
+{/* No Conflicts State */}
+⋮----
+/* Conflicted Rules List */
+⋮----
+onClick=
+</file>
+
+<file path="src/components/EntityManager.tsx">
+import React, { useState, useMemo } from 'react';
+import {
+  DatabaseState,
+  Subject,
+  ClassEntity,
+  Room,
+  Teacher,
+  Session,
+  Period,
+  SyllabusUnit
+} from '../types';
+import {
+  Database,
+  Plus,
+  Edit2,
+  Trash2,
+  BookOpen,
+  GraduationCap,
+  DoorOpen,
+  Users,
+  Clock,
+  Sliders,
+  Layers,
+  Download,
+  Upload,
+  Search,
+  Check,
+  X,
+  FileSpreadsheet,
+  FileText,
+  ChevronUp,
+  ChevronDown,
+  Book,
+  ExternalLink,
+  ShoppingCart,
+  ShoppingBag,
+  Link2,
+  ShieldAlert,
+  ShieldCheck,
+  AlertTriangle,
+  ArrowRight,
+  CalendarDays,
+  Mail,
+  Video
+} from 'lucide-react';
+import { ClassIcon, ClassIconPicker } from './ClassIcon';
+import {
+  exportRulesToCsv,
+  exportEvtlogToCsv,
+  exportTeachersToCsv,
+  exportClassesToCsv,
+  exportSubjectsToCsv,
+  exportRoomsToCsv,
+  exportSessionsToCsv,
+  exportPeriodsToCsv,
+  downloadCsvFile
+} from '../utils/csvHelper';
+import { exportSyllabusToCsv } from '../utils/syllabusImporter';
+import { SyllabusImporterModal } from './syllabus/SyllabusImporterModal';
+import { RulesDatabaseTab } from './database/RulesDatabaseTab';
+import { MateriDatabaseTab } from './database/MateriDatabaseTab';
+import { KaldikEventsDatabaseTab } from './database/KaldikEventsDatabaseTab';
+import { detectConflicts } from '../utils/scheduleEngine';
+import { ScheduleRule } from '../types';
+⋮----
+interface EntityManagerProps {
+  db: DatabaseState;
+  onUpdateDb: (updater: (prev: DatabaseState) => DatabaseState) => void;
+  onExportJson: () => void;
+  onImportJson: (jsonString: string) => void;
+  onEditRule?: (rule: ScheduleRule) => void;
+  onAddRule?: () => void;
+  onToggleRuleActive?: (ruleId: string) => void;
+  onDeleteRule?: (ruleId: string) => void;
+  onNavigateToExportImport?: () => void;
+  isAdmin?: boolean;
+  onOpenAdminLogin?: () => void;
+}
+⋮----
+const handleImportSyllabusUnits = (newUnits: SyllabusUnit[], mode: 'replace' | 'append') =>
+⋮----
+// Helper maps for relations
+⋮----
+// Authoritative Data Integrity Diagnostics via scheduleEngine
+⋮----
+// Overlapping period date ranges
+⋮----
+// Generic delete handler
+const handleDelete = (type: string, id: string) =>
+⋮----
+// Check if used in rules
+⋮----
+// Auto-compute order sequentially so there are no gaps
+⋮----
+const handleSaveItem = (type: string, rawItemData: any) =>
+⋮----
+// Auto-compute order: sort by specified order and re-index sequentially 1..N
+⋮----
+// Auto-compute order: sort by periodNumber and re-index sequentially 1..N
+⋮----
+const handleMoveSession = (sessionId: string, direction: 'up' | 'down' = 'down') =>
+⋮----
+// Auto-compute order
+⋮----
+const handleMovePeriod = (periodId: string, direction: 'up' | 'down' = 'down') =>
+⋮----
+// Auto-compute order
+⋮----
+const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) =>
+⋮----
+{/* Top Banner */}
+⋮----
+setIsCreating(true);
+setEditingItem(null);
+⋮----
+{/* Sub-tab Navigation */}
+⋮----
+setSubTab('subjects');
+setIsCreating(false);
+⋮----
+onChange=
+</file>
+
+<file path="src/components/ExportImportView.tsx">
+import React, { useState, useRef } from 'react';
+import {
+  DatabaseState,
+  SyllabusUnit
+} from '../types';
+import {
+  Database,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  FileText,
+  Users,
+  GraduationCap,
+  BookOpen,
+  DoorOpen,
+  Clock,
+  Sliders,
+  ArrowLeft,
+  CheckCircle2,
+  AlertTriangle,
+  FileCheck,
+  FolderDown,
+  Layers,
+  Sparkles
+} from 'lucide-react';
+import {
+  exportRulesToCsv,
+  exportEvtlogToCsv,
+  exportTeachersToCsv,
+  exportClassesToCsv,
+  exportSubjectsToCsv,
+  exportRoomsToCsv,
+  exportSessionsToCsv,
+  exportPeriodsToCsv,
+  downloadCsvFile
+} from '../utils/csvHelper';
+import { exportSyllabusToCsv } from '../utils/syllabusImporter';
+import { SyllabusImporterModal } from './syllabus/SyllabusImporterModal';
+⋮----
+interface ExportImportViewProps {
+  db: DatabaseState;
+  onExportJson: () => void;
+  onImportJson: (jsonString: string) => void;
+  onUpdateDb: (updater: (prev: DatabaseState) => DatabaseState) => void;
+  onBackToDatabase?: () => void;
+  onNavigateToSchedule?: () => void;
+}
+⋮----
+const handleImportSyllabusUnits = (newUnits: SyllabusUnit[], mode: 'replace' | 'append') =>
+⋮----
+const processJsonFile = (file: File) =>
+⋮----
+const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+⋮----
+// reset input value so re-selecting same file triggers event
+⋮----
+const handleDragOver = (e: React.DragEvent) =>
+⋮----
+const handleDragLeave = (e: React.DragEvent) =>
+⋮----
+const handleDrop = (e: React.DragEvent) =>
+⋮----
+{/* Top Header Card */}
+⋮----
+{/* Database Inventory Snapshot */}
+⋮----
+{/* Notification banner if import was executed */}
+⋮----
+{/* Grid: JSON Full System Backup & Restore */}
+⋮----
+{/* Card 1: Ekspor Cadangan Sistem (JSON) */}
+⋮----
+{/* Card 2: Impor Pemulihan Basis Data (JSON) */}
+⋮----
+{/* Drag and drop zone */}
+⋮----
+{/* Section 2: Ekspor CSV per Tabel Basis Data */}
+⋮----
+{/* Guru CSV */}
+⋮----
+const csv = exportTeachersToCsv(db);
+downloadCsvFile(`teachers_$
+⋮----
+downloadCsvFile(`classes_$
+⋮----
+downloadCsvFile(`subjects_$
+⋮----
+downloadCsvFile(`rooms_$
+⋮----
+{/* Sesi Jam CSV */}
+⋮----
+downloadCsvFile(`sessions_$
+⋮----
+{/* Periode Akademik CSV */}
+⋮----
+downloadCsvFile(`periods_$
+⋮----
+{/* Section 3: Jadwal, Event Log & Materi Silabus CSV */}
+⋮----
+{/* Rules CSV */}
+⋮----
+downloadCsvFile(`rules_$
+⋮----
+{/* Event Log CSV */}
+⋮----
+downloadCsvFile(`evtlog_$
+⋮----
+{/* Silabus Units CSV */}
+⋮----
+{/* Impor Silabus CSV */}
+⋮----
+{/* Syllabus Importer Modal */}
+</file>
+
+<file path="src/components/Header.tsx">
+import React, { useState } from 'react';
+import {
+  Home,
+  Calendar as CalendarIcon,
+  AlertTriangle,
+  BookOpen,
+  Users,
+  Database,
+  Menu,
+  ChevronDown,
+  Lock,
+  Unlock,
+  RefreshCw,
+  CheckCircle2,
+  ShieldAlert,
+  Layers,
+  BookmarkCheck,
+  CalendarDays,
+  Download
+} from 'lucide-react';
+import { ScheduleConflict } from '../types';
+import { LOGO_BASE64 } from '../assets/logo';
+⋮----
+export type ActiveTabType = 'home' | 'studio' | 'kaldik' | 'journal' | 'subjects' | 'teachers' | 'conflicts' | 'database' | 'export-import';
+⋮----
+interface HeaderProps {
+  activeTab: ActiveTabType;
+  setActiveTab: (tab: ActiveTabType) => void;
+  conflicts: ScheduleConflict[];
+  showRules?: boolean;
+  onToggleRules?: (show: boolean) => void;
+  isSaving: boolean;
+  isAdmin: boolean;
+  onOpenAdminLogin: () => void;
+  onAdminLogout: () => void;
+}
+⋮----
+const getMenuIcon = () =>
+⋮----
+{/* Logo & Title */}
+⋮----
+{/* Right Area: Conflicts alert & Admin Auth */}
+⋮----
+{/* Admin status toggle */}
+⋮----
+{/* Navigation Bar: Main "Jadwal" + Hidden Menus */}
+⋮----
+{/* Primary Tab: Beranda */}
+⋮----
+{/* Primary Tab: Jadwal (Studio) */}
+⋮----
+{/* Dropdown Menu for other sections */}
+⋮----
+{/* Dropdown items */}
+⋮----
+setActiveTab('kaldik');
+setIsMenuOpen(false);
+⋮----
+setActiveTab('subjects');
+⋮----
+setActiveTab('teachers');
+⋮----
+{/* Admin Sub Menu */}
+⋮----
+{/* Right Status & Actions */}
+</file>
+
+<file path="src/components/HomeTab.tsx">
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Calendar as CalendarIcon,
+  Clock,
+  MapPin,
+  User,
+  School,
+  BookOpen,
+  ArrowRight,
+  Sparkles,
+  CheckCircle2,
+  CalendarCheck2,
+  AlertCircle,
+  ExternalLink,
+  Flame,
+  Layers,
+  Video
+} from 'lucide-react';
+import { DatabaseState, SyllabusUnit, DayOfWeek } from '../types';
+import { ClassIcon } from './ClassIcon';
+import {
+  resolveViewerCurrentAndNextClass,
+  formatUnitDisplay,
+  getScheduledSessionsForSubjectClass
+} from '../utils/pacingEngine';
+import { ViewerRole } from './JournalView';
+⋮----
+interface HomeTabProps {
+  db: DatabaseState;
+  viewerRole: ViewerRole;
+  setViewerRole: (role: ViewerRole) => void;
+  viewerId: string;
+  setViewerId: (id: string) => void;
+  onNavigateToJournal: (subjectId: string, classId: string, date: string) => void;
+  onNavigateToSchedule: () => void;
+}
+⋮----
+// Live ticker clock
+⋮----
+}, 15000); // refresh every 15s
+⋮----
+// Format today string
+⋮----
+// Resolve current and next class
+⋮----
+// Remaining time logic: 'Hari Ini' {remaining hours} : nextClass.occurrence.date - today
+⋮----
+// Active viewer label
+⋮----
+{/* Hero Welcome & Viewer Selector */}
+⋮----
+{/* Subtle decorative background glow */}
+⋮----
+{/* Role Switcher */}
+⋮----
+setViewerRole('student');
+⋮----
+{/* Selector dropdown for Class or Teacher */}
+⋮----
+onChange=
+⋮----
+{/* CURRENT CLASS: small notif when nothing is active, full card when a class is live */}
+⋮----
+{/* TWO PRIMARY FOCUS CARDS: CURRENT CLASS & NEXT CLASS */}
+⋮----
+{/* CARD 1: CURRENT CLASS (only rendered when a class is live) */}
+⋮----
+{/* Header / Status pill */}
+⋮----
+{/* Subject & Counterpart */}
+⋮----
+{/* Online Class Link clickable icon */}
+⋮----
+{/* Timing & Location */}
+⋮----
+{/* Material rendered via get_units_for_session per specification:
+                  "{part}/{page_start}: {title}" (list if multiple) */}
+⋮----
+{/* Deep link action button */}
+⋮----
+{/* CARD 2: NEXT CLASS (Walk forward, may be a future day) */}
+⋮----
+{/* Header / Status pill */}
+⋮----
+{/* Subject & Counterpart */}
+⋮----
+{/* Online Class Link clickable icon */}
+⋮----
+{/* Timing & Location */}
+⋮----
+{/* Material rendered via get_units_for_session:
+                    "{part}/{page_start}: {title}" (list if multiple) */}
+⋮----
+{/* Deep link action button */}
+⋮----
+{/* QUICK SHORTCUTS TO STUDIO & JOURNAL */}
+</file>
+
+<file path="src/components/JournalView.tsx">
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import {
+  BookOpen,
+  Calendar as CalendarIcon,
+  Clock,
+  MapPin,
+  User,
+  Layers,
+  ChevronRight,
+  ArrowLeft,
+  CheckCircle2,
+  CalendarDays,
+  Sparkles,
+  SlidersHorizontal,
+  Search,
+  School,
+  BookmarkCheck
+} from 'lucide-react';
+import {
+  DatabaseState,
+  SyllabusUnit,
+  SyllabusScope,
+  ScheduledSessionOccurrence,
+  Teacher,
+  Room
+} from '../types';
+import {
+  computePacingProjection,
+  get_units_for_session,
+  formatUnitDisplay,
+  getScopedUnits
+} from '../utils/pacingEngine';
+import { AdminScopeModal } from './syllabus/AdminScopeModal';
+⋮----
+export type ViewerRole = 'student' | 'teacher' | 'admin';
+export type JournalFilterMode = 'all' | 'class' | 'teacher';
+⋮----
+interface JournalViewProps {
+  db: DatabaseState;
+  isAdmin: boolean;
+  onUpdateDb: (updater: (prev: DatabaseState) => DatabaseState) => void;
+  viewerRole?: ViewerRole;
+  setViewerRole?: (role: ViewerRole) => void;
+  viewerId?: string;
+  setViewerId?: (id: string) => void;
+  initialSubjectId?: string;
+  initialClassId?: string;
+  highlightDate?: string;
+  onClearInitialDeepLink?: () => void;
+  onOpenAdminLogin: () => void;
+}
+⋮----
+// Navigation states
+⋮----
+// Local filter for "Pilih Mata Pelajaran" page (defaults to 'all', does not auto-filter)
+⋮----
+// Modals
+⋮----
+// 1-time token state for row highlight (e.g. from Home schedule occurrence)
+⋮----
+// References for scrolling
+⋮----
+// Today string YYYY-MM-DD
+⋮----
+// Handle deep link updates from Home tab or Pelajaran tab (strictly 1-time token)
+⋮----
+// If not provided, check if only 1 applicable class exists for this subject
+⋮----
+// Consume the 1-time token immediately so it does not persist in App state
+⋮----
+// Ensure any token is cleared when unmounting / exiting Journal page
+⋮----
+// Auto-scroll to today or highlighted date once journal view renders
+⋮----
+// Filter subjects in "Pilih Mata Pelajaran" page:
+// By default ('all'), shows ALL subjects!
+// Users can manually filter by Kelas or Guru next to the search input.
+⋮----
+// 'all': show all subjects by default!
+⋮----
+// Find applicable class-sections for selectedSubjectId
+// Shows ALL classes that have this subject scheduled across the school!
+⋮----
+// When selecting a subject:
+// If only 1 class takes this subject, auto-select it.
+// Otherwise, user goes to "Pilih Kelas" page to see and select from listed classes.
+const handleSelectSubject = (subId: string) =>
+⋮----
+// Scoped pacing data for the selected (subject, class)
+⋮----
+// Scope status
+⋮----
+const handleSaveScope = (scope: SyllabusScope | null) =>
+⋮----
+{/* Top Banner: Header Card */}
+⋮----
+{/* STEP 1: SUBJECT PICKER (If no subject is selected) */}
+⋮----
+{/* Filter controls & Search */}
+⋮----
+{/* Manual Filter Selector Div */}
+⋮----
+{/* Dropdown if 'class' is active */}
+⋮----
+{/* Dropdown if 'teacher' is active */}
+⋮----
+{/* Search Input */}
+⋮----
+onChange=
+⋮----
+{/* STEP 2: CLASS-SECTION PICKER (If subject selected but multiple classes available) */}
+⋮----
+setSelectedSubjectId(null);
+setSelectedClassId(null);
+onClearInitialDeepLink?.();
+⋮----
+// Count sessions in term for this class
+⋮----
+{/* STEP 3: JOURNAL VIEW (Chronological Session by Session) */}
+⋮----
+{/* Breadcrumb & Header Card */}
+⋮----
+{/* Admin Scope Button */}
+⋮----
+{/* Meta details */}
+⋮----
+{/* CHRONOLOGICAL SESSION ROWS */}
+⋮----
+{/* Left: Session timing, meeting badge, room */}
+⋮----
+{/* Number badge */}
+⋮----
+{/* Right: Units rendered per specification: "{part}/{page_start}: {title}" (list if multiple) */}
+⋮----
+{/* Admin Scope Modal */}
+</file>
+
+<file path="src/components/RuleModal.tsx">
+import React, { useState, useEffect } from 'react';
+import {
+  DatabaseState,
+  ScheduleRule,
+  RuleException,
+  DayOfWeek
+} from '../types';
+import {
+  X,
+  Zap,
+  Plus,
+  Trash2,
+  AlertCircle,
+  Save,
+  Clock,
+  Repeat,
+  Layers,
+  GraduationCap,
+  Users,
+  DoorOpen
+} from 'lucide-react';
+⋮----
+interface RuleModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (rule: ScheduleRule) => void;
+  onDelete?: (ruleId: string) => void;
+  db: DatabaseState;
+  editingRule?: ScheduleRule | null;
+  prefill?: {
+    day?: DayOfWeek;
+    periodId?: string;
+    sessionId?: string;
+    classId?: string;
+    subjectId?: string;
+  };
+}
+⋮----
+// Auto-fill default teacher/room if new rule and subject changes
+const handleSubjectChange = (newSubjectId: string) =>
+⋮----
+const togglePeriod = (pId: string) =>
+⋮----
+// Remove exceptions for this period if any
+⋮----
+const addException = () =>
+⋮----
+const updateException = (idx: number, updates: Partial<RuleException>) =>
+⋮----
+const removeException = (idx: number) =>
+⋮----
+const handleSubmit = (e: React.FormEvent) =>
+⋮----
+const toggleDay = (day: DayOfWeek) =>
+⋮----
+const selectDayPreset = (preset: 'all' | 'mtw' | 'mwf' | 'tt') =>
+⋮----
+{/* Modal Header */}
+⋮----
+{/* Modal Form */}
+⋮----
+{/* Subject & Class Row */}
+⋮----
+{/* Teacher & Room Row */}
+⋮----
+{/* Timing, Cadence & Dedicated Periods Column in 2-Column Layout */}
+⋮----
+{/* Column 1 (Left): Session, Repeat, and Days */}
+⋮----
+{/* Primary Session */}
+⋮----
+{/* Repeating Cadence */}
+⋮----
+{/* Days Selection with 4 Presets (M-F, MTW, MWF, TT) - Only when Weekly */}
+⋮----
+{/* Column 2 (Right): Dedicated Column for Periods with Vertical List Style and Checkboxes */}
+⋮----
+{/* Vertical Stacked List Style with Checkboxes (No bulky cards) */}
+⋮----
+{/* Notes & Active Status */}
+⋮----
+{/* RULE EXCEPTIONS SECTION - Shifted Below Notes with Small Checkbox Toggle */}
+⋮----
+onChange=
+⋮----
+{/* Footer Actions */}
+</file>
+
+<file path="src/components/RulesManager.tsx">
+import React, { useState, useMemo } from 'react';
+import {
+  DatabaseState,
+  ScheduleRule,
+  Subject,
+  ScheduleConflict
+} from '../types';
+import {
+  Layers,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Copy,
+  Trash2,
+  Edit2,
+  Zap,
+  Calendar,
+  Clock,
+  Users,
+  DoorOpen,
+  GraduationCap,
+  Search,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Repeat,
+  Lock,
+  Unlock
+} from 'lucide-react';
+⋮----
+interface RulesManagerProps {
+  db: DatabaseState;
+  conflicts: ScheduleConflict[];
+  onOpenNewRule: (prefillSubjectId?: string) => void;
+  onEditRule: (rule: ScheduleRule) => void;
+  onDuplicateRule: (rule: ScheduleRule) => void;
+  onDeleteRule: (ruleId: string) => void;
+  onToggleRuleActive: (ruleId: string, active: boolean) => void;
+  onToggleSubjectRulesActive: (subjectId: string, active: boolean) => void;
+  isAdmin?: boolean;
+  onOpenAdminLogin?: () => void;
+}
+⋮----
+// Helper maps
+⋮----
+// Group rules by Subject
+⋮----
+const toggleSubjectCollapse = (subjectId: string) =>
+⋮----
+const expandAll = () => setCollapsedSubjectIds(
+const collapseAll = () =>
+⋮----
+const guardAdminAction = (callback: () => void) =>
+⋮----
+{/* Admin lock status banner */}
+⋮----
+{/* Top Controls & Explanation Banner */}
+⋮----
+{/* Add Schedule Rule Button (inside Rule Panel only, as requested!) */}
+⋮----
+{/* Filter / Search Bar */}
+⋮----
+{/* Subject Rule Groups */}
+⋮----
+{/* Condensed Subject Header */}
+⋮----
+{/* Right controls */}
+⋮----
+{/* Add rule for this specific subject */}
+⋮----
+{/* Collapsible Rule Cards */}
+⋮----
+{/* Main Details */}
+⋮----
+{/* Teachers & Rooms */}
+⋮----
+{/* Actions (Guarded by Admin auth) */}
+⋮----
+{/* Rule Exceptions */}
+</file>
+
+<file path="src/components/UnifiedStudio.tsx">
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  DatabaseState,
+  ScheduleConflict,
+  ScheduleRule,
+  DayOfWeek
+} from '../types';
+import { CalendarView, ScheduleViewMode } from './CalendarView';
+import { RulesManager } from './RulesManager';
+import { ViewerRole } from './JournalView';
+⋮----
+interface UnifiedStudioProps {
+  db: DatabaseState;
+  onUpdateDb?: React.Dispatch<React.SetStateAction<DatabaseState>>;
+  conflicts: ScheduleConflict[];
+  showRules: boolean;
+  onToggleRules: (show: boolean) => void;
+  onOpenNewRule: (prefillSubjectId?: string) => void;
+  onOpenNewRuleForSlot: (day: DayOfWeek, periodId: string, sessionId: string, classId?: string) => void;
+  onEditRule: (rule: ScheduleRule) => void;
+  onDuplicateRule: (rule: ScheduleRule) => void;
+  onDeleteRule: (ruleId: string) => void;
+  onToggleRuleActive: (ruleId: string, active: boolean) => void;
+  onToggleSubjectRulesActive: (subjectId: string, active: boolean) => void;
+  onViewConflict: (conflict: ScheduleConflict) => void;
+  isAdmin: boolean;
+  onOpenAdminLogin: () => void;
+  viewerRole?: ViewerRole;
+  viewerId?: string;
+  onViewerChange?: (role: ViewerRole, id: string) => void;
+}
+⋮----
+// Retain view mode persistently across rule panel toggles and sync with viewerRole
+⋮----
+// Synchronize when viewerRole or viewerId changes from parent (e.g. Home tab or URL)
+⋮----
+const handleSelectClass = (clsId: string) =>
+⋮----
+const handleSelectTeacher = (tchId: string) =>
+⋮----
+const handleViewModeChange = (mode: ScheduleViewMode) =>
+⋮----
+{/* Main Content: Single persistent CalendarView container to prevent remounting and state reset */}
+⋮----
+{/* Calendar View (Full width or 7 cols when rules open) */}
+</file>
+
+<file path="src/utils/csvHelper.ts">
+import { DatabaseState, DayOfWeek, ScheduleRule } from '../types';
+⋮----
+/**
+ * Escapes a field for CSV format (RFC 4180)
+ */
+function escapeCsvValue(val: unknown): string
+⋮----
+/**
+ * Export rules starting with id column followed by all rule and entity details
+ */
+export function exportRulesToCsv(db: DatabaseState): string
+⋮----
+/**
+ * Export chip details ("evtlog") containing 2 columns: date and rulexID
+ * Generates resolved chip occurrences for academic dates mapped to their parent rule ID.
+ */
+export function exportEvtlogToCsv(db: DatabaseState): string
+⋮----
+interface EvtRow {
+    date: string;
+    rulexID: string;
+  }
+⋮----
+// Resolve days of week
+⋮----
+// Resolve period IDs
+⋮----
+// Loop over dates
+⋮----
+const jsDay = curr.getDay(); // 0 = Sun, 1 = Mon, ...
+⋮----
+// Sort events chronologically, then by rulexID
+⋮----
+// 2 columns: date and rulexID
+⋮----
+/**
+ * Export teachers table to CSV
+ */
+export function exportTeachersToCsv(db: DatabaseState): string
+⋮----
+/**
+ * Export classes table to CSV
+ */
+export function exportClassesToCsv(db: DatabaseState): string
+⋮----
+/**
+ * Export subjects table to CSV
+ */
+export function exportSubjectsToCsv(db: DatabaseState): string
+⋮----
+/**
+ * Export rooms table to CSV
+ */
+export function exportRoomsToCsv(db: DatabaseState): string
+⋮----
+/**
+ * Export sessions table to CSV
+ */
+export function exportSessionsToCsv(db: DatabaseState): string
+⋮----
+/**
+ * Export periods table to CSV
+ */
+export function exportPeriodsToCsv(db: DatabaseState): string
+⋮----
+/**
+ * Triggers a browser download of CSV text
+ */
+export function downloadCsvFile(filename: string, content: string): void
+</file>
+
+<file path="src/utils/kaldikValidation.ts">
+import { Period } from '../types';
+⋮----
+export interface KbmDateValidationResult {
+  validStartDate: string;
+  validEndDate: string;
+  matchedPeriod: Period | null;
+  wasAdjusted: boolean;
+  message?: string;
+}
+⋮----
+/**
+ * Validates manual inputs of dates for KBM (Kegiatan Belajar Mengajar).
+ * If dates span outside valid period range, rejects invalid range and forces dates
+ * to fit the closest valid period boundaries.
+ */
+export function validateAndFitKbmPeriodDates(
+  inputStartDate: string,
+  inputEndDate: string,
+  selectedPeriodId: string | undefined,
+  periods: Period[]
+): KbmDateValidationResult
+⋮----
+// Find targeted period: either by selectedPeriodId, or closest matching by start date
+⋮----
+// Find period where inputStartDate falls within, or closest by start date distance
+⋮----
+// Find closest period
+⋮----
+// Rule 1: startDate cannot be before period.startDate
+⋮----
+// Rule 2: startDate cannot be after period.endDate
+⋮----
+// Rule 3: endDate cannot exceed period.endDate
+⋮----
+// Rule 4: endDate cannot be before validStartDate
+</file>
+
+<file path="src/utils/normalize.ts">
+import {
+  DatabaseState,
+  ScheduleRule,
+  RuleException,
+  Period,
+  Session,
+  Subject,
+  ClassEntity,
+  Teacher,
+  Room,
+  DayOfWeek,
+  SyllabusUnit,
+  SyllabusScope,
+  KaldikEvent
+} from '../types';
+⋮----
+export function normalizeKaldikEvent(raw: any): KaldikEvent
+⋮----
+export function normalizeRule(raw: any, availablePeriods: Period[] = []): ScheduleRule
+⋮----
+// 1. Resolve Period IDs (periodIds, period_ids, or JSON string)
+⋮----
+// Always sort periodIds according to availablePeriods order/periodNumber
+⋮----
+// 2. Resolve Days
+⋮----
+// 3. Resolve Exceptions
+⋮----
+// Dual properties for 100% interoperability with Python / SQLite / JSON
+⋮----
+export function normalizeDatabaseState(raw: any): DatabaseState
+</file>
+
+<file path="src/utils/pacingEngine.ts">
+import {
+  DatabaseState,
+  SyllabusUnit,
+  SyllabusScope,
+  ScheduledSessionOccurrence,
+  DayOfWeek,
+  RuleException
+} from '../types';
+⋮----
+/**
+ * Unit weight calculation per specification:
+ * Unit weight = eno - no + 1.
+ * Never use pages for calculation — no/eno are pre-corrected and continuous across pt,
+ * pages/part are display-only.
+ */
+export function getUnitWeight(unit: SyllabusUnit): number
+⋮----
+/**
+ * Display helper per specification:
+ * Rendered as "{part}/{page_start}: {title}"
+ */
+export function formatUnitDisplay(unit: SyllabusUnit): string
+⋮----
+/**
+ * Retrieves the scoped syllabus units for a given (subject, class-section).
+ * - Full syllabus ordered by order.
+ * - Sliced by SyllabusScope if present; no row = default to full syllabus.
+ */
+export function getScopedUnits(
+  db: DatabaseState,
+  subject_id: string,
+  class_section_id: string
+): SyllabusUnit[]
+⋮----
+// Filter by subject_id and sort by order ascending (as specified: "Sort by mapel_n per mapel_id to assign order — don't trust file row order")
+⋮----
+// Look for SyllabusScope override
+⋮----
+// If indices are inverted, swap them
+⋮----
+/**
+ * Live query of scheduled sessions for that subject+class-section within the Rule's period dates.
+ * Always computed live — never cached, so schedule changes reflect immediately.
+ */
+export function getScheduledSessionsForSubjectClass(
+  db: DatabaseState,
+  subject_id: string,
+  class_section_id: string
+): ScheduledSessionOccurrence[]
+⋮----
+// Resolve scheduled days
+⋮----
+// Resolve period IDs
+⋮----
+// Check exception for this period
+⋮----
+const jsDay = curr.getDay(); // 0 = Sun, 1 = Mon, ...
+⋮----
+meetingIndex: 0 // populated after sorting
+⋮----
+// Sort chronological by date, then by session start time
+⋮----
+// Assign 1-based meeting indices
+⋮----
+/**
+ * Proportional pacing engine:
+ * Spread unit weights proportionally across sessions.
+ * Returns array of { session: ScheduledSessionOccurrence, units: SyllabusUnit[] }
+ */
+export function computePacingProjection(
+  db: DatabaseState,
+  subject_id: string,
+  class_section_id: string
+): Array<
+⋮----
+// Compute unit weights and cumulative intervals
+⋮----
+// Cumulative positions for units: [C_k, C_{k+1}]
+⋮----
+// A unit overlaps with session if interval [unit.start, unit.end] intersects [sessionStart, sessionEnd]
+⋮----
+// Fallback: If discrete floating gap yields empty set, assign closest unit
+⋮----
+/**
+ * Core function per specification:
+ * get_units_for_session(subject_id, class_section_id, session_id) -> list[SyllabusUnit]
+ * 
+ * Supports session_id as:
+ * - scheduled session occurrence id (e.g. `${date}_${sessionId}_${ruleId}`)
+ * - date string (`YYYY-MM-DD`)
+ * - numeric meetingIndex (1, 2, ...)
+ * - raw session id combined with date or first matching
+ */
+export function get_units_for_session(
+  db: DatabaseState,
+  subject_id: string,
+  class_section_id: string,
+  session_id: string | number
+): SyllabusUnit[]
+⋮----
+// 1. Direct match on occurrence ID
+⋮----
+// 2. Match on 1-based meeting index if numeric
+⋮----
+// 3. Match on date string (YYYY-MM-DD)
+⋮----
+// If multiple sessions on that date, return union
+⋮----
+// 4. Partial or session slot id match (e.g. 'ses-1')
+⋮----
+// Default: empty list
+⋮----
+/**
+ * Resolves all scheduled sessions across the entire school for a viewer
+ * (Student Class, Teacher, or Admin) sorted chronologically.
+ */
+export function getViewerScheduledSessions(
+  db: DatabaseState,
+  viewerRole: 'student' | 'teacher' | 'admin',
+  viewerId?: string
+): ScheduledSessionOccurrence[]
+⋮----
+// Filter by viewer role
+⋮----
+// Sort chronologically
+⋮----
+export interface ResolvedViewerClassStatus {
+  currentClass: {
+    occurrence: ScheduledSessionOccurrence;
+    subjectName: string;
+    subjectBook?: string;
+    subjectColor: string;
+    classColor?: string;
+    className?: string;
+    counterpartLabel: string;
+    roomName: string;
+    units: SyllabusUnit[];
+    timeRemainingMinutes?: number;
+  } | null;
+  nextClass: {
+    occurrence: ScheduledSessionOccurrence;
+    subjectName: string;
+    subjectBook?: string;
+    subjectColor: string;
+    classColor?: string;
+    className?: string;
+    counterpartLabel: string;
+    roomName: string;
+    units: SyllabusUnit[];
+    isToday: boolean;
+  } | null;
+}
+⋮----
+/**
+ * Home tab resolution engine:
+ * Resolves viewer's current class (today's date/time vs. their schedule)
+ * and next class (walk forward, may be a future day).
+ */
+export function resolveViewerCurrentAndNextClass(
+  db: DatabaseState,
+  viewerRole: 'student' | 'teacher' | 'admin',
+  viewerId?: string,
+  referenceDate: Date = new Date()
+): ResolvedViewerClassStatus
+⋮----
+// 1. Check for current class today
+⋮----
+// 2. Resolve next class (walk forward: today after current time, or future days)
+⋮----
+const formatCounterpart = (occ: ScheduledSessionOccurrence): string =>
+⋮----
+// Calculate time remaining in minutes
+</file>
+
+<file path="src/utils/routing.ts">
+import { ActiveTabType } from '../components/Header';
+import { ViewerRole } from '../components/JournalView';
+import { DatabaseState } from '../types';
+⋮----
+export interface ParsedRoute {
+  tab?: ActiveTabType;
+  role?: ViewerRole;
+  id?: string;
+}
+⋮----
+/**
+ * Parse URL search parameters for tab, role, and entity id
+ */
+export function parseUrlRoute(db?: DatabaseState): ParsedRoute
+⋮----
+/**
+ * Update URL search parameters according to the current tab and viewer token
+ */
+export function updateUrlRoute(
+  tab: ActiveTabType,
+  role: ViewerRole,
+  id: string,
+  mode: 'push' | 'replace' = 'replace'
+)
+</file>
+
+<file path="src/utils/scheduleEngine.ts">
+import {
+  DatabaseState,
+  ScheduleRule,
+  ScheduleConflict,
+  ScheduleCell,
+  DayOfWeek,
+  Period,
+  Session,
+  RuleException,
+  ResolvedSlot
+} from '../types';
+⋮----
+export function computeResolvedSlots(rules: ScheduleRule[]): ResolvedSlot[]
+⋮----
+// Resolve days safely
+⋮----
+// Resolve periodIds safely (handling periodIds array, period_ids array, or json string)
+⋮----
+// Check for exception on this period
+⋮----
+export function detectConflicts(db: DatabaseState): ScheduleConflict[]
+⋮----
+// Group slots by Day + Period (date range) + Session (time range) to find true simultaneous bookings
+⋮----
+// 1. Check Teacher Conflicts (Same teacher booked in > 1 class/room at the same time)
+⋮----
+// 2. Check Class Conflicts (Same class scheduled for > 1 subject/room at the same time)
+⋮----
+// 3. Check Room Conflicts (Same room booked for > 1 class/teacher at the same time)
+⋮----
+export function buildScheduleMatrix(
+  db: DatabaseState,
+  filterType: 'all' | 'class' | 'teacher' | 'room',
+  filterId: string,
+  allConflicts: ScheduleConflict[],
+  selectedPeriodId?: string
+):
+⋮----
+// Filter slots if a filter is active
+⋮----
+// Initialize every day + session cell
+⋮----
+// Find slots matching this cell
+⋮----
+// Find conflicts for this day and session
+</file>
+
+<file path="src/utils/syllabusImporter.ts">
+import { SyllabusUnit, DatabaseState } from '../types';
+⋮----
+/**
+ * Escapes a field for CSV format (RFC 4180)
+ */
+function escapeCsv(val: unknown): string
+⋮----
+/**
+ * Robust CSV line tokenizer respecting quoted fields
+ */
+function parseCsvRows(text: string): string[][]
+⋮----
+i++; // skip escaped quote
+⋮----
+function cleanHeaderKey(h: string): string
+⋮----
+/**
+ * Parse Syllabus CSV per specification:
+ * - mapel_id -> subject_code
+ * - mapel_n -> order
+ * - mtr -> title
+ * - hal pertama -> page_start
+ * - hal terakhir -> page_end
+ * - pt -> part
+ * - no -> no
+ * - eno -> eno
+ * Ignore all other source columns.
+ * Sort by mapel_n per mapel_id to assign order — don't trust file row order.
+ */
+export function parseSyllabusCsv(
+  csvText: string,
+  subjects: { id: string; code: string }[],
+  defaultSubjectId?: string
+):
+⋮----
+// Look up subjects by their CODE (e.g. "MATH101"), not their internal id.
+⋮----
+// Find column indices
+⋮----
+// Group by mapel_id and sort by mapel_n per mapel_id to assign order — don't trust file row order
+⋮----
+// Sort strictly by mapel_n
+⋮----
+const assignedOrder = index + 1; // clean 1-based sequential order
+⋮----
+/**
+ * Generates sample CSV template for SyllabusUnit
+ */
+export function getSampleSyllabusCsv(subjectId: string = 'MT'): string
+⋮----
+/**
+ * Export all syllabus units to CSV
+ */
+export function exportSyllabusUnitsToCsv(units: SyllabusUnit[], db?: DatabaseState): string
+</file>
+
+<file path="src/App.tsx">
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { DatabaseState, ScheduleRule, ScheduleConflict, DayOfWeek } from './types';
+import { initialData } from './data/initialData';
+import { detectConflicts } from './utils/scheduleEngine';
+import { normalizeDatabaseState, normalizeRule } from './utils/normalize';
+import { Header, ActiveTabType } from './components/Header';
+import { UnifiedStudio } from './components/UnifiedStudio';
+import { SubjectsDirectory } from './components/directory/SubjectsDirectory';
+import { TeachersDirectory } from './components/directory/TeachersDirectory';
+import { ConflictCenter } from './components/ConflictCenter';
+import { EntityManager } from './components/EntityManager';
+import { RuleModal } from './components/RuleModal';
+import { AdminLoginModal } from './components/AdminLoginModal';
+import { HomeTab } from './components/HomeTab';
+import { JournalView, ViewerRole } from './components/JournalView';
+import { ExportImportView } from './components/ExportImportView';
+import { KaldikView } from './components/kaldik/KaldikView';
+import { parseUrlRoute, updateUrlRoute } from './utils/routing';
+⋮----
+// Viewer role & identity state for Home, Studio/Jadwal & Journal
+⋮----
+// Deep linking to Journal view
+⋮----
+const handleSetViewerRole = (role: ViewerRole) =>
+⋮----
+const handleSetViewerId = (id: string) =>
+⋮----
+const handleNavigateToJournal = (subjectId?: string, classId?: string, date?: string) =>
+⋮----
+const handleTabChange = (tab: ActiveTabType) =>
+⋮----
+// Navigating between tabs clears all 1-time deep link tokens
+⋮----
+// Sync token in localStorage & URL
+⋮----
+// Handle browser back/forward buttons (popstate)
+⋮----
+const handlePopState = () =>
+⋮----
+// Fetch from backend API on mount
+⋮----
+// Ensure viewerId stays valid when classes or teachers change
+⋮----
+// Sync save to server and local cache
+⋮----
+// Conflicts calculation
+⋮----
+// Admin login / logout
+const handleOpenAdminLogin = () =>
+⋮----
+const handleAdminLogout = () =>
+⋮----
+const handleAdminSuccess = () =>
+⋮----
+// Rule Handlers
+const handleOpenNewRule = (prefillSubjectId?: string) =>
+⋮----
+const handleOpenNewRuleForSlot = (
+    day: DayOfWeek,
+    periodId: string,
+    sessionId: string,
+    classId?: string
+) =>
+⋮----
+const handleEditRule = (rule: ScheduleRule) =>
+⋮----
+const handleAddRule = () =>
+⋮----
+const handleDuplicateRule = (rule: ScheduleRule) =>
+⋮----
+const handleDeleteRule = (ruleId: string) =>
+⋮----
+const handleToggleRuleActive = (ruleId: string, active: boolean) =>
+⋮----
+const handleToggleSubjectRulesActive = (subjectId: string, active: boolean) =>
+⋮----
+const handleSaveRule = (rule: ScheduleRule) =>
+⋮----
+// Reset demo template
+const handleResetData = () =>
+⋮----
+// Export JSON
+const handleExportJson = () =>
+⋮----
+// Import JSON
+const handleImportJson = (jsonString: string) =>
+⋮----
+{/* Top Header & Navigation */}
+⋮----
+{/* Main Content */}
+⋮----
+{/* Portal Home Tab */}
+⋮----
+{/* Main Tab: Jadwal (Calendar is hero view) */}
+⋮----
+onViewerChange=
+⋮----
+onBackToSchedule=
+⋮----
+// Do not force carry-over any classId so user can choose or auto-resolve properly
+⋮----
+{/* Menu Tab: Guru */}
+⋮----
+setViewerRole('teacher');
+setViewerId(teacherId);
+handleTabChange('studio');
+⋮----
+{/* Menu Tab: Conflict Inspector (3rd in menu) */}
+⋮----
+{/* Menu Tab: Ekspor & Impor Data */}
+⋮----
+onBackToDatabase=
+⋮----
+{/* Rule Creator / Editor Modal with dynamic Exceptions */}
+⋮----
+{/* Admin Password Authentication Modal */}
+</file>
+
+<file path="src/index.css">
+
+</file>
+
+<file path="src/main.tsx">
+import {StrictMode} from 'react';
+import {createRoot} from 'react-dom/client';
+import App from './App.tsx';
+</file>
+
+<file path="src/types.ts">
+export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+⋮----
+export interface SubjectLinks {
+  pdf?: string;
+  shopping?: string;
+  shopping2?: string;
+  site?: string;
+  [key: string]: string | undefined;
+}
+⋮----
+export interface Subject {
+  id: string;
+  code: string;
+  name: string;
+  color: string;
+  department: string;
+  defaultTeacherId?: string;
+  defaultRoomId?: string;
+  default_teacher_id?: string | null;
+  default_room_id?: string | null;
+  book?: string;
+  links?: SubjectLinks;
+  pdfLink?: string;
+  shoppingLink?: string;
+  shoppingLink2?: string;
+  siteLink?: string;
+}
+⋮----
+export interface ClassEntity {
+  id: string;
+  name: string;
+  grade: number;
+  section: string;
+  studentCount: number;
+  student_count?: number;
+  icon?: string;
+  color?: string;
+  onlineClassLink?: string;
+  online_class_link?: string;
+  defaultRoomId?: string;
+  default_room_id?: string | null;
+}
+⋮----
+export interface Room {
+  id: string;
+  name: string;
+  building: string;
+  capacity: number;
+  type: 'Standard' | 'Science Lab' | 'Computer Lab' | 'Gymnasium' | 'Auditorium' | string;
+}
+⋮----
+export interface Teacher {
+  id: string;
+  name: string;
+  panggilan?: string;
+  email: string;
+  department: string;
+  maxPeriodsPerWeek: number;
+  max_periods_per_week?: number;
+  color?: string;
+}
+⋮----
+export interface Session {
+  id: string;
+  name: string;
+  order: number;
+  startTime: string; // timeA (e.g. '08:00')
+  endTime: string; // timeB (e.g. '10:00')
+  sort_order?: number;
+  start_time?: string;
+  end_time?: string;
+}
+⋮----
+startTime: string; // timeA (e.g. '08:00')
+endTime: string; // timeB (e.g. '10:00')
+⋮----
+export interface Period {
+  id: string;
+  name: string; // e.g. 'Period 1 (Term 1)'
+  periodNumber: number;
+  startDate: string; // dateA (e.g. '2026-09-01')
+  endDate: string; // dateB (e.g. '2026-09-30')
+  description?: string;
+  period_number?: number;
+  start_date?: string;
+  end_date?: string;
+}
+⋮----
+name: string; // e.g. 'Period 1 (Term 1)'
+⋮----
+startDate: string; // dateA (e.g. '2026-09-01')
+endDate: string; // dateB (e.g. '2026-09-30')
+⋮----
+export interface RuleException {
+  id: string;
+  ruleId: string;
+  periodId: string; // The date-range period that triggers this exception
+  overrideSessionId?: string; // e.g. 'ses-3' (override time-range session)
+  overrideRoomId?: string;
+  overrideTeacherId?: string;
+  note?: string;
+  period_id?: string;
+  override_session_id?: string;
+  override_room_id?: string;
+  override_teacher_id?: string;
+}
+⋮----
+periodId: string; // The date-range period that triggers this exception
+overrideSessionId?: string; // e.g. 'ses-3' (override time-range session)
+⋮----
+export interface ResolvedSlot {
+  ruleId: string;
+  subjectId: string;
+  classId: string;
+  teacherId: string;
+  roomId: string;
+  sessionId: string;
+  day: DayOfWeek;
+  periodId: string;
+  hasException: boolean;
+  exceptionDetail?: string;
+}
+⋮----
+export interface ScheduleRule {
+  id: string;
+  subjectId: string;
+  classId: string;
+  teacherId: string;
+  roomId: string;
+  sessionId: string;
+  dayOfWeek?: DayOfWeek;
+  daysOfWeek?: DayOfWeek[];
+  periodIds: string[];
+  repeatDetail: 'Weekly' | 'Bi-Weekly' | 'Custom';
+  active: boolean;
+  exceptions: RuleException[];
+  notes?: string;
+  createdAt?: string;
+  // Interoperability aliases for SQLite / Python JSON exports
+  subject_id?: string;
+  class_id?: string;
+  teacher_id?: string;
+  room_id?: string;
+  session_id?: string;
+  day_of_week?: string;
+  days_of_week?: string[];
+  period_ids?: string[];
+  repeat_detail?: string;
+}
+⋮----
+// Interoperability aliases for SQLite / Python JSON exports
+⋮----
+export interface EventLog {
+  id: string;
+  timestamp: string;
+  action: string;
+  category: 'rule' | 'database' | 'conflict' | 'system';
+  details: string;
+}
+⋮----
+export type ConflictType = 'teacher' | 'class' | 'room' | 'session';
+⋮----
+export interface ScheduleConflict {
+  id: string;
+  type: ConflictType;
+  title: string;
+  description: string;
+  day: DayOfWeek;
+  periodId: string;
+  sessionId: string;
+  involvedRuleIds: string[];
+  severity: 'critical' | 'warning';
+  entityName?: string;
+  message?: string;
+}
+⋮----
+export interface ScheduleCell {
+  day: DayOfWeek;
+  periodId: string;
+  sessionId: string;
+  isFilled: boolean;
+  ruleId?: string;
+  subjectId?: string;
+  classId?: string;
+  teacherId?: string;
+  roomId?: string;
+  hasException?: boolean;
+  exceptionDetail?: string;
+  conflicts: ScheduleConflict[];
+  slots?: ResolvedSlot[];
+}
+⋮----
+export type KaldikEventType = 'kbm' | 'holiday' | 'exam' | 'activity' | 'general';
+⋮----
+export interface KaldikEvent {
+  id: string;
+  title: string;
+  isKbm?: boolean;
+  type: KaldikEventType;
+  isAllDay: boolean;
+  startDate: string; // 'YYYY-MM-DD'
+  endDate: string; // 'YYYY-MM-DD'
+  startTime?: string; // '08:00'
+  endTime?: string; // '10:00'
+  isRecurring?: boolean;
+  daysOfWeek?: DayOfWeek[]; // e.g. ['Monday', 'Thursday']
+  repeatDetail?: 'Weekly' | 'Bi-Weekly' | 'Custom';
+  periodId?: string; // Associated period ID for KBM or academic terms
+  color?: string; // Hex color badge e.g. '#F59E0B'
+  description?: string;
+  createdAt?: string;
+}
+⋮----
+startDate: string; // 'YYYY-MM-DD'
+endDate: string; // 'YYYY-MM-DD'
+startTime?: string; // '08:00'
+endTime?: string; // '10:00'
+⋮----
+daysOfWeek?: DayOfWeek[]; // e.g. ['Monday', 'Thursday']
+⋮----
+periodId?: string; // Associated period ID for KBM or academic terms
+color?: string; // Hex color badge e.g. '#F59E0B'
+⋮----
+export interface DatabaseState {
+  subjects: Subject[];
+  classes: ClassEntity[];
+  rooms: Room[];
+  teachers: Teacher[];
+  sessions: Session[];
+  periods: Period[];
+  rules: ScheduleRule[];
+  kaldikEvents?: KaldikEvent[];
+  syllabusUnits?: SyllabusUnit[];
+  syllabusScopes?: SyllabusScope[];
+}
+⋮----
+export interface SyllabusUnit {
+  id: string;
+  subject_id: string; // from mapel_id
+  order: number; // from mapel_n
+  title: string; // from mtr
+  page_start: number | string; // from hal pertama
+  page_end: number | string; // from hal terakhir
+  part: number | string; // from pt
+  no: number;
+  eno: number;
+}
+⋮----
+subject_id: string; // from mapel_id
+order: number; // from mapel_n
+title: string; // from mtr
+page_start: number | string; // from hal pertama
+page_end: number | string; // from hal terakhir
+part: number | string; // from pt
+⋮----
+export interface SyllabusScope {
+  id: string;
+  subject_id: string;
+  class_section_id: string; // class entity id
+  start_unit_id: string; // FK to SyllabusUnit
+  end_unit_id: string; // FK to SyllabusUnit
+}
+⋮----
+class_section_id: string; // class entity id
+start_unit_id: string; // FK to SyllabusUnit
+end_unit_id: string; // FK to SyllabusUnit
+⋮----
+export interface ScheduledSessionOccurrence {
+  id: string; // unique identifier: `${date}_${sessionId}_${ruleId}`
+  date: string; // 'YYYY-MM-DD'
+  day: DayOfWeek;
+  sessionId: string; // references Session
+  sessionName: string;
+  startTime: string;
+  endTime: string;
+  ruleId: string;
+  subjectId: string;
+  classId: string;
+  teacherId: string;
+  roomId: string;
+  periodId: string;
+  meetingIndex: number; // 1-based index for this subject & class in the term
+}
+⋮----
+id: string; // unique identifier: `${date}_${sessionId}_${ruleId}`
+date: string; // 'YYYY-MM-DD'
+⋮----
+sessionId: string; // references Session
+⋮----
+meetingIndex: number; // 1-based index for this subject & class in the term
+</file>
+
+<file path=".env.example">
+# GEMINI_API_KEY: Required for Gemini AI API calls.
+# AI Studio automatically injects this at runtime from user secrets.
+# Users configure this via the Secrets panel in the AI Studio UI.
+GEMINI_API_KEY="MY_GEMINI_API_KEY"
+
+# APP_URL: The URL where this applet is hosted.
+# AI Studio automatically injects this at runtime with the Cloud Run service URL.
+# Used for self-referential links, OAuth callbacks, and API endpoints.
+APP_URL="MY_APP_URL"
+</file>
+
+<file path=".gitignore">
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+data/
+package-lock.json
+repomix-output.xml
+repomix/
+bun.lock
+</file>
+
+<file path="index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portal Akademik Idad Jamiiy</title>
+    <link rel="icon" type="image/png" href="/small_favicon.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <meta name="description" content="Aplikasi informasi kegiatan belajar mengajar dan aktifitas Program I'dad Jami'iy Ma'had Asy-Syifa. Jadwal siswa dan guru secara real-time, Kalender Pendidikan, Silabus materi dan rencana belajar, Data mata pelajaran dan guru." />
+    <meta property="og:title" content="Portal Akademik Idad Jamiiy" />
+    <meta property="og:description" content="Aplikasi informasi kegiatan belajar mengajar dan aktifitas Program I'dad Jami'iy Ma'had Asy-Syifa. Jadwal siswa dan guru secara real-time, Kalender Pendidikan, Silabus materi dan rencana belajar, Data mata pelajaran dan guru." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="metadata.json">
+{
+  "name": "Portal Akademik Idad Jamiiy",
+  "description": "Aplikasi informasi kegiatan belajar mengajar dan aktifitas Program I\u0027dad Jami\u0027iy Ma\u0027had Asy-Syifa.\n- Jadwal siswa dan guru secara real-time.\n- Kalender Pendidikan.\n- Silabus materi dan rencana belajar.\n- Data mata pelajaran dan guru.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
+    "preview": "vite preview",
+    "clean": "rm -rf dist server.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "lucide-react": "^0.546.0",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "vite": "^6.2.3",
+    "express": "^4.21.2",
+    "dotenv": "^17.2.3",
+    "motion": "^12.23.24"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "^0.25.0",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3",
+    "@types/express": "^4.17.21"
+  }
+}
+</file>
+
+<file path="README.md">
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
+
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/e55a1a15-09c9-40c3-91e5-f83f40d38068
+
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
+</file>
+
+<file path="server.ts">
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import zlib from 'zlib';
+import { createServer as createViteServer } from 'vite';
+import { initialData } from './src/data/initialData.ts';
+⋮----
+// Initialize database.json if not present
+⋮----
+// Persistent remote storage (jsonbin.io) — survives redeploys/restarts.
+// Falls back to the local file (NOT persistent on Cloud Run) if unconfigured.
+⋮----
+async function readData()
+⋮----
+async function writeData(data: any)
+⋮----
+// jsonbin.io free tier restricts records to <= 100KB.
+// Deflate + base64 shrinks ~150KB database to ~25KB.
+⋮----
+// API Routes
+⋮----
+async function startServer()
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": [
+    "src",
+    "server.ts"
+  ]
+}
+</file>
+
+<file path="vite.config.ts">
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import {defineConfig} from 'vite';
+⋮----
+// HMR is disabled in AI Studio via DISABLE_HMR env var.
+// Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+⋮----
+// Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
+</file>
+
+</files>

@@ -57,9 +57,7 @@ import {
 } from '../utils/csvHelper';
 import { exportSyllabusToCsv } from '../utils/syllabusImporter';
 import { SyllabusImporterModal } from './syllabus/SyllabusImporterModal';
-import { RulesDatabaseTab } from './database/RulesDatabaseTab';
 import { MateriDatabaseTab } from './database/MateriDatabaseTab';
-import { KaldikEventsDatabaseTab } from './database/KaldikEventsDatabaseTab';
 import { detectConflicts } from '../utils/scheduleEngine';
 import { ScheduleRule } from '../types';
 
@@ -73,6 +71,7 @@ interface EntityManagerProps {
   onToggleRuleActive?: (ruleId: string) => void;
   onDeleteRule?: (ruleId: string) => void;
   onNavigateToExportImport?: () => void;
+  onNavigateToRuleManager?: () => void;
   isAdmin?: boolean;
   onOpenAdminLogin?: () => void;
 }
@@ -87,11 +86,12 @@ export const EntityManager: React.FC<EntityManagerProps> = ({
   onToggleRuleActive,
   onDeleteRule,
   onNavigateToExportImport,
+  onNavigateToRuleManager,
   isAdmin = true,
   onOpenAdminLogin
 }) => {
   const [subTab, setSubTab] = useState<
-    'subjects' | 'classes' | 'rooms' | 'teachers' | 'sessions' | 'periods' | 'rules' | 'kaldik' | 'materi' | 'integrity'
+    'subjects' | 'classes' | 'rooms' | 'teachers' | 'sessions' | 'periods' | 'materi'
   >('subjects');
   const [search, setSearch] = useState('');
   const [editingItem, setEditingItem] = useState<{ type: string; data: any } | null>(null);
@@ -380,7 +380,19 @@ export const EntityManager: React.FC<EntityManagerProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {subTab !== 'integrity' && subTab !== 'rules' && subTab !== 'materi' && subTab !== 'kaldik' && (
+          {onNavigateToRuleManager && (
+            <button
+              type="button"
+              onClick={onNavigateToRuleManager}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-colors cursor-pointer"
+              title="Buka Rule Manager Studio untuk mengatur aturan KBM, kaldik & silabus"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Buka Rule Manager</span>
+              <ArrowRight className="w-3 h-3 text-indigo-400" />
+            </button>
+          )}
+          {subTab !== 'materi' && (
             <button
               id="entity-add-btn"
               onClick={() => {
@@ -496,51 +508,6 @@ export const EntityManager: React.FC<EntityManagerProps> = ({
             <span>Fase ({db.periods.length})</span>
           </button>
           <button
-            id="subtab-btn-rules"
-            onClick={() => {
-              setSubTab('rules');
-              setIsCreating(false);
-              setEditingItem(null);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-              subTab === 'rules' || subTab === 'integrity'
-                ? 'bg-amber-50 text-amber-700 font-bold border border-amber-200/80 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>Rules ({db.rules.length})</span>
-            {integrityReport.totalIssues > 0 ? (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-0.5">
-                <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
-                <span>{integrityReport.totalIssues} Isu</span>
-              </span>
-            ) : (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-0.5">
-                <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
-                <span>OK</span>
-              </span>
-            )}
-          </button>
-
-          <button
-            id="subtab-btn-kaldik"
-            onClick={() => {
-              setSubTab('kaldik');
-              setIsCreating(false);
-              setEditingItem(null);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-              subTab === 'kaldik'
-                ? 'bg-amber-50 text-amber-700 font-bold border border-amber-200/80 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            <CalendarDays className="w-4 h-4" />
-            <span>Kaldik ({(db.kaldikEvents || []).length})</span>
-          </button>
-
-          <button
             id="subtab-btn-materi"
             onClick={() => {
               setSubTab('materi');
@@ -559,7 +526,7 @@ export const EntityManager: React.FC<EntityManagerProps> = ({
         </div>
 
         {/* Search for Standard Tables */}
-        {subTab !== 'rules' && subTab !== 'integrity' && subTab !== 'materi' && subTab !== 'kaldik' && (
+        {subTab !== 'materi' && (
           <div className="relative min-w-[200px]">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
@@ -587,31 +554,6 @@ export const EntityManager: React.FC<EntityManagerProps> = ({
         />
       )}
 
-      {/* Rules & Integrity Database Tab */}
-      {(subTab === 'rules' || subTab === 'integrity') && (
-        <RulesDatabaseTab
-          db={db}
-          onUpdateDb={onUpdateDb}
-          onEditRule={onEditRule}
-          onAddRule={onAddRule}
-          onToggleRuleActive={onToggleRuleActive}
-          onDeleteRule={onDeleteRule}
-          isAdmin={isAdmin}
-          onOpenAdminLogin={onOpenAdminLogin}
-          initialSubView={subTab === 'integrity' ? 'integrity' : 'rules'}
-        />
-      )}
-
-      {/* Kaldik Events Database Tab */}
-      {subTab === 'kaldik' && (
-        <KaldikEventsDatabaseTab
-          db={db}
-          onUpdateDb={onUpdateDb}
-          isAdmin={isAdmin}
-          onOpenAdminLogin={onOpenAdminLogin}
-        />
-      )}
-
       {/* Materi Silabus Database Tab */}
       {subTab === 'materi' && (
         <MateriDatabaseTab
@@ -621,7 +563,7 @@ export const EntityManager: React.FC<EntityManagerProps> = ({
       )}
 
       {/* Standard Entities Data Table */}
-      {subTab !== 'rules' && subTab !== 'integrity' && subTab !== 'materi' && subTab !== 'kaldik' && (
+      {subTab !== 'materi' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
             {subTab === 'subjects' && (

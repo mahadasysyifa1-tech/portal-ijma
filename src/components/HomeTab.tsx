@@ -155,7 +155,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 Selamat Datang di Portal IJMA
               </span>
               <span className="text-xs text-slate-400 font-mono font-medium">
-                {clockFormatted} WIB {todayFormatted}
+                <span>{clockFormatted} WIB </span><span>{todayFormatted}</span>
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -260,8 +260,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           className="rounded-3xl border-2 p-5 sm:p-6 transition-all relative overflow-hidden flex flex-col justify-between shadow-md"
           style={{
             borderColor: currentClassColor,
-            background: `linear-gradient(135deg, ${currentClassColor}33 0%, #FFFFFF 40%, ${currentClassColor}1A 100%)`,
-            boxShadow: `0 4px 20px -2px ${currentClassColor}4D`
+            background: `linear-gradient(135deg, #FFFFFF 0%, ${currentClassColor} 100%)`,
+            boxShadow: `0 4px 20px -2px ${currentClassColor}66`
           }}
         >
           <div>
@@ -269,8 +269,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             <div className="flex items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2">
                 <span
-                  className="w-3 h-3 rounded-full animate-ping shrink-0"
-                  style={{ backgroundColor: currentClassColor }}
+                  className="w-4 h-4 rounded-full animate-ping shrink-0 bg-blue-500"
+                  /* class color is too weak: style={{ backgroundColor: currentClassColor }} */
                 />
                 <span className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
                   Kelas Berlangsung Saat Ini
@@ -298,7 +298,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                     className="w-3 h-3 rounded-full shrink-0"
                     style={{ backgroundColor: currentClass.subjectColor }}
                   />
-                  <h3 className="text-base inline-flex sm:text-lg font-bold text-slate-900 leading-tight">
+                  <h3 className="text-base inline-flex gap-1.5 sm:text-lg font-bold text-slate-900 leading-tight">
                     {currentClass.subjectName}
                     {currentClass.subjectBook && (
                       <span className="text-slate-500 font-semibold"> ({currentClass.subjectBook})</span>
@@ -320,26 +320,13 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pl-5">
                   <p className="text-xs font-semibold text-slate-600">
-                    {viewerRole === 'student' ? 'Pengampu: ' : 'Rombel: '}
+                    {viewerRole === 'student' ? 'Pengampu: ' : ''}
                     <span className="text-slate-900 font-bold">
-                      {currentClass.counterpartLabel}
+                      {viewerRole === 'teacher' ? '' : currentClass.counterpartLabel}
                     </span>
                   </p>
 
 
-                  {/* Online Class Link clickable icon */}
-                  {currentClassEntity?.onlineClassLink && (
-                    <a
-                      href={currentClassEntity.onlineClassLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-2xs cursor-pointer ml-auto"
-                      title={`Buka Kelas Online: ${currentClassEntity.onlineClassLink}`}
-                    >
-                      <Video className="w-3 h-3" />
-                      <span>Kelas Online</span>
-                    </a>
-                  )}
                 </div>
               </div>
 
@@ -355,6 +342,21 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 <div className="flex items-center gap-1.5 font-medium">
                   <MapPin className="w-4 h-4 text-slate-400" />
                   <span>{currentClass.roomName}</span>
+                </div>
+                <div>
+                  {/* Online Class Link clickable icon */}
+                  {currentClassEntity?.onlineClassLink && (
+                    <a
+                      href={currentClassEntity.onlineClassLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-2xs cursor-pointer ml-auto"
+                      title={`Buka Kelas Online: ${currentClassEntity.onlineClassLink}`}
+                    >
+                      <Video className="w-4 h-4" />
+                      <span>online</span>
+                    </a>
+                  )}
                 </div>
               </div>
 
@@ -440,7 +442,6 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             {/* Header / Status pill */}
             <div className="flex items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                 <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
                   Kelas Berikutnya (Next Class)
                 </span>
@@ -468,7 +469,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                       className="w-3 h-3 rounded-full shrink-0"
                       style={{ backgroundColor: nextClass.subjectColor }}
                     />
-                    <h3 className="text-base inline-flex gap-1 sm:text-lg font-bold text-slate-900 leading-tight">
+                    <h3 className="text-base inline-flex gap-1.5 sm:text-lg font-bold text-slate-900 leading-tight">
                       {nextClass.subjectName}
                       {nextClass.subjectBook && (
                         <span className="text-slate-500 font-semibold"> ({nextClass.subjectBook})</span>
@@ -490,25 +491,11 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   </div>
                   <div className="flex flex-wrap items-center gap-2 pl-5">
                     <p className="text-xs font-semibold text-slate-600">
-                      {viewerRole === 'student' ? 'Pengampu: ' : 'Rombel: '}
+                      {viewerRole === 'student' ? 'Pengampu: ' : ''}
                       <span className="text-slate-900 font-bold">
-                        {nextClass.counterpartLabel}
+                        {viewerRole === 'teacher' ? '' : nextClass.counterpartLabel}
                       </span>
                     </p>
-
-                    {/* Online Class Link clickable icon */}
-                    {nextClassEntity?.onlineClassLink && (
-                      <a
-                        href={nextClassEntity.onlineClassLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-2xs cursor-pointer ml-auto"
-                        title={`Buka Kelas Online: ${nextClassEntity.onlineClassLink}`}
-                      >
-                        <Video className="w-3 h-3" />
-                        <span>Kelas Online</span>
-                      </a>
-                    )}
                   </div>
                 </div>
 
@@ -529,6 +516,21 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   <div className="flex items-center gap-1.5 font-medium">
                     <MapPin className="w-4 h-4 text-slate-400" />
                     <span>{nextClass.roomName}</span>
+                  </div>
+                  <div>
+                    {/* Online Class Link clickable icon */}
+                    {nextClassEntity?.onlineClassLink && (
+                      <a
+                        href={nextClassEntity.onlineClassLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-2xs cursor-pointer ml-auto"
+                        title={`Buka Kelas Online: ${nextClassEntity.onlineClassLink}`}
+                      >
+                        <Video className="w-3 h-3" />
+                        <span>online</span>
+                      </a>
+                    )}
                   </div>
                 </div>
 

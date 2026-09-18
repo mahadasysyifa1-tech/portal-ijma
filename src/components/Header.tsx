@@ -16,12 +16,13 @@ import {
   Layers,
   BookmarkCheck,
   CalendarDays,
-  Download
+  Download,
+  Sliders
 } from 'lucide-react';
 import { ScheduleConflict } from '../types';
 import { LOGO_BASE64 } from '../assets/logo';
 
-export type ActiveTabType = 'home' | 'studio' | 'kaldik' | 'journal' | 'subjects' | 'teachers' | 'conflicts' | 'database' | 'export-import';
+export type ActiveTabType = 'home' | 'studio' | 'kaldik' | 'journal' | 'subjects' | 'teachers' | 'conflicts' | 'database' | 'export-import' | 'rule-manager';
 
 interface HeaderProps {
   activeTab: ActiveTabType;
@@ -64,13 +65,15 @@ export const Header: React.FC<HeaderProps> = ({
         return <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-rose-600" />;
       case 'export-import':
         return <Download className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-indigo-600" />;
+      case 'rule-manager':
+        return <Sliders className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-indigo-600" />;
       default:
         return <Menu className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />;
     }
   };
 
   return (
-    <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-30 shadow-xs">
+    <header className="bg-white backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-30 shadow-s">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between py-2 sm:py-2.5 min-h-[56px] sm:h-16 gap-2">
           {/* Logo & Title */}
@@ -215,6 +218,8 @@ export const Header: React.FC<HeaderProps> = ({
                     ? 'Conflict Inspector'
                     : activeTab === 'export-import'
                     ? 'Ekspor & Impor'
+                    : activeTab === 'rule-manager'
+                    ? 'Rule Manager'
                     : ''}
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
@@ -293,6 +298,31 @@ export const Header: React.FC<HeaderProps> = ({
                     {/* Admin Sub Menu */}
                     <button
                       type="button"
+                      id="tab-btn-rule-manager"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        if (!isAdmin) {
+                          onOpenAdminLogin();
+                        } else {
+                          setActiveTab('rule-manager');
+                        }
+                      }}
+                      className={`w-full px-3.5 py-2 text-left text-xs font-semibold flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer ${
+                        activeTab === 'rule-manager' ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Sliders className="w-4 h-4 text-indigo-600" />
+                        <span>Rule Manager (Studio)</span>
+                      </div>
+                      {!isAdmin && (
+                        <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded font-normal">
+                          Admin
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
                       id="tab-btn-database"
                       onClick={() => {
                         setIsMenuOpen(false);
@@ -312,7 +342,7 @@ export const Header: React.FC<HeaderProps> = ({
                       </div>
                       {!isAdmin && (
                         <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded font-normal">
-                          Perlu Login
+                          Admin
                         </span>
                       )}
                     </button>

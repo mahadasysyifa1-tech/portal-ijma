@@ -6,13 +6,21 @@ import {
   DayOfWeek,
   Period,
   Session,
-  RuleException,
   ResolvedSlot
 } from '../types';
+import {
+  getNormalizedDateRangesForRule,
+  checkDateRangesOverlap,
+  doesIntersectRange
+} from './dateNormalizer';
 
 export type { ResolvedSlot };
 
-export function computeResolvedSlots(rules: ScheduleRule[]): ResolvedSlot[] {
+/**
+ * Resolves active schedule rules into individual slots.
+ * Each slot contains normalized date ranges computed from presets/ranges.
+ */
+export function computeResolvedSlots(rules: ScheduleRule[], periods: Period[] = []): ResolvedSlot[] {
   const slots: ResolvedSlot[] = [];
   if (!Array.isArray(rules)) return slots;
 
@@ -20,186 +28,168 @@ export function computeResolvedSlots(rules: ScheduleRule[]): ResolvedSlot[] {
     if (!rule || !rule.active) continue;
 
     // Resolve days safely
-    const rawDays = rule.daysOfWeek || rule.days_of_week;
+    const rawDays = rule.daysOfWeek || (rule as any).days_of_week;
     const daysToSchedule: DayOfWeek[] = (Array.isArray(rawDays) && rawDays.length > 0)
       ? (rawDays as DayOfWeek[])
-      : [(rule.dayOfWeek || rule.day_of_week || 'Monday') as DayOfWeek];
+      : [(rule.dayOfWeek || (rule as any).day_of_week || 'Monday') as DayOfWeek];
 
-    // Resolve periodIds safely (handling periodIds array, period_ids array, or json string)
-    let periodIds: string[] = [];
-    const rawPids: unknown = (rule as any).periodIds !== undefined ? (rule as any).periodIds : (rule as any).period_ids;
-    if (Array.isArray(rawPids)) {
-      periodIds = rawPids.map(String).filter(Boolean);
-    } else if (typeof rawPids === 'string') {
-      try {
-        const parsed = JSON.parse(rawPids);
-        if (Array.isArray(parsed)) periodIds = parsed.map(String).filter(Boolean);
-        else if (rawPids.trim()) periodIds = [rawPids.trim()];
-      } catch {
-        if (rawPids.trim()) periodIds = [rawPids.trim()];
-      }
-    }
+    // Compute normalized date ranges for this rule
+    const dateRanges = getNormalizedDateRangesForRule(rule, periods);
+    if (dateRanges.length === 0) continue;
 
-    if (periodIds.length === 0) continue;
-
-    const exceptions: RuleException[] = Array.isArray(rule.exceptions) ? rule.exceptions : [];
-    const ruleSubjectId = rule.subjectId || rule.subject_id || '';
-    const ruleClassId = rule.classId || rule.class_id || '';
-    const ruleTeacherId = rule.teacherId || rule.teacher_id || '';
-    const ruleRoomId = rule.roomId || rule.room_id || '';
-    const ruleSessionId = rule.sessionId || rule.session_id || '';
+    const ruleSubjectId = rule.subjectId || (rule as any).subject_id || '';
+    const ruleClassId = rule.classId || (rule as any).class_id || '';
+    const ruleTeacherId = rule.teacherId || (rule as any).teacher_id || '';
+    const ruleRoomId = rule.roomId || (rule as any).room_id || '';
+    const ruleSessionId = rule.sessionId || (rule as any).session_id || '';
+    const primaryPeriodId = (rule.periodIds && rule.periodIds[0]) || (rule as any).period_ids?.[0] || 'all';
 
     for (const day of daysToSchedule) {
-      for (const periodId of periodIds) {
-        // Check for exception on this period
-        const exception = exceptions.find((e) => (e.periodId || e.period_id) === periodId);
-
-        const effectiveSessionId = exception?.overrideSessionId || exception?.override_session_id || ruleSessionId;
-        const effectiveRoomId = exception?.overrideRoomId || exception?.override_room_id || ruleRoomId;
-        const effectiveTeacherId = exception?.overrideTeacherId || exception?.override_teacher_id || ruleTeacherId;
-
-        slots.push({
-          ruleId: rule.id,
-          subjectId: ruleSubjectId,
-          classId: ruleClassId,
-          teacherId: effectiveTeacherId,
-          roomId: effectiveRoomId,
-          sessionId: effectiveSessionId,
-          day,
-          periodId: periodId,
-          hasException: Boolean(exception),
-          exceptionDetail: exception?.note || ((exception?.overrideSessionId || exception?.override_session_id) ? `Session overridden to ${exception?.overrideSessionId || exception?.override_session_id}` : undefined)
-        });
-      }
+      slots.push({
+        ruleId: rule.id,
+        subjectId: ruleSubjectId,
+        classId: ruleClassId,
+        teacherId: ruleTeacherId,
+        roomId: ruleRoomId,
+        sessionId: ruleSessionId,
+        day,
+        periodId: primaryPeriodId,
+        dateRanges,
+        hasException: false,
+        exceptionDetail: undefined
+      });
     }
   }
 
   return slots;
 }
 
+/**
+ * Detects scheduling conflicts based on date range overlaps, day, and session.
+ * Does NOT rely on rigid period IDs; overlapping date spans are computed automatically.
+ */
 export function detectConflicts(db: DatabaseState): ScheduleConflict[] {
   if (!db || !Array.isArray(db.rules)) return [];
-  const slots = computeResolvedSlots(db.rules);
+  const periods = Array.isArray(db.periods) ? db.periods : [];
+  const slots = computeResolvedSlots(db.rules, periods);
   const conflicts: ScheduleConflict[] = [];
 
-  const periods = Array.isArray(db.periods) ? db.periods : [];
   const sessions = Array.isArray(db.sessions) ? db.sessions : [];
   const classes = Array.isArray(db.classes) ? db.classes : [];
   const teachers = Array.isArray(db.teachers) ? db.teachers : [];
   const rooms = Array.isArray(db.rooms) ? db.rooms : [];
   const subjects = Array.isArray(db.subjects) ? db.subjects : [];
 
-  // Group slots by Day + Period (date range) + Session (time range) to find true simultaneous bookings
-  const dayPeriodSessionMap = new Map<string, ResolvedSlot[]>();
-
+  // Group slots by Day and Session (time bucket)
+  const daySessionMap = new Map<string, ResolvedSlot[]>();
   for (const slot of slots) {
-    const key = `${slot.day}_${slot.periodId}_${slot.sessionId}`;
-    if (!dayPeriodSessionMap.has(key)) {
-      dayPeriodSessionMap.set(key, []);
+    const key = `${slot.day}_${slot.sessionId}`;
+    if (!daySessionMap.has(key)) {
+      daySessionMap.set(key, []);
     }
-    dayPeriodSessionMap.get(key)!.push(slot);
+    daySessionMap.get(key)!.push(slot);
   }
 
-  dayPeriodSessionMap.forEach((timeSlots, key) => {
-    const [dayStr, periodId, sessionId] = key.split('_');
+  const recordedConflictKeys = new Set<string>();
+
+  daySessionMap.forEach((sessionSlots, daySessionKey) => {
+    const [dayStr, sessionId] = daySessionKey.split('_');
     const day = dayStr as DayOfWeek;
-    const periodObj = periods.find((p) => p.id === periodId);
     const sessionObj = sessions.find((s) => s.id === sessionId);
-    const periodLabel = periodObj ? `${periodObj.name} (${periodObj.startDate || periodObj.start_date} to ${periodObj.endDate || periodObj.end_date})` : periodId;
-    const sessionLabel = sessionObj ? `${sessionObj.name} (${sessionObj.startTime || sessionObj.start_time}-${sessionObj.endTime || sessionObj.end_time})` : sessionId;
+    const sessionLabel = sessionObj
+      ? `${sessionObj.name} (${sessionObj.startTime || (sessionObj as any).start_time || '08:00'}-${sessionObj.endTime || (sessionObj as any).end_time || '10:00'})`
+      : sessionId;
 
-    // 1. Check Teacher Conflicts (Same teacher booked in > 1 class/room at the same time)
-    const teacherMap = new Map<string, ResolvedSlot[]>();
-    for (const slot of timeSlots) {
-      if (!teacherMap.has(slot.teacherId)) {
-        teacherMap.set(slot.teacherId, []);
+    // Compare pairs of slots to verify whether active date ranges overlap
+    for (let i = 0; i < sessionSlots.length; i++) {
+      for (let j = i + 1; j < sessionSlots.length; j++) {
+        const slotA = sessionSlots[i];
+        const slotB = sessionSlots[j];
+
+        if (slotA.ruleId === slotB.ruleId) continue;
+
+        const { overlap, overlapRange } = checkDateRangesOverlap(
+          slotA.dateRanges || [],
+          slotB.dateRanges || []
+        );
+
+        if (!overlap || !overlapRange) continue;
+
+        const dateRangeLabel = `${overlapRange.startDate} s/d ${overlapRange.endDate}`;
+
+        // 1. Teacher Conflict: Same teacher double-booked
+        if (slotA.teacherId && slotA.teacherId === slotB.teacherId) {
+          const teacher = teachers.find((t) => t.id === slotA.teacherId);
+          const teacherName = teacher?.name || 'Guru';
+          const classA = classes.find((c) => c.id === slotA.classId)?.name || 'Kelas A';
+          const classB = classes.find((c) => c.id === slotB.classId)?.name || 'Kelas B';
+          const conflictKey = `tch_${slotA.teacherId}_${day}_${sessionId}_${[slotA.ruleId, slotB.ruleId].sort().join('_')}`;
+
+          if (!recordedConflictKeys.has(conflictKey)) {
+            recordedConflictKeys.add(conflictKey);
+            conflicts.push({
+              id: `conflict-tch-${slotA.teacherId}-${day}-${sessionId}-${slotA.ruleId.slice(0, 5)}`,
+              type: 'teacher',
+              title: `Tabrakan Jadwal Guru: ${teacherName}`,
+              description: `${teacherName} dijadwalkan mengajar di 2 kelas (${classA} dan ${classB}) bersamaan pada ${day}, ${sessionLabel} (Rentang tumpukan: ${dateRangeLabel}).`,
+              day,
+              periodId: slotA.periodId || 'all',
+              sessionId,
+              involvedRuleIds: [slotA.ruleId, slotB.ruleId],
+              severity: 'critical'
+            });
+          }
+        }
+
+        // 2. Class Conflict: Same class assigned to multiple subjects
+        if (slotA.classId && slotA.classId === slotB.classId) {
+          const cls = classes.find((c) => c.id === slotA.classId);
+          const className = cls?.name || 'Kelas';
+          const subA = subjects.find((s) => s.id === slotA.subjectId)?.name || 'Mapel A';
+          const subB = subjects.find((s) => s.id === slotB.subjectId)?.name || 'Mapel B';
+          const conflictKey = `cls_${slotA.classId}_${day}_${sessionId}_${[slotA.ruleId, slotB.ruleId].sort().join('_')}`;
+
+          if (!recordedConflictKeys.has(conflictKey)) {
+            recordedConflictKeys.add(conflictKey);
+            conflicts.push({
+              id: `conflict-cls-${slotA.classId}-${day}-${sessionId}-${slotA.ruleId.slice(0, 5)}`,
+              type: 'class',
+              title: `Tabrakan Jadwal Kelas: ${className}`,
+              description: `${className} dijadwalkan menerima 2 mata pelajaran (${subA} dan ${subB}) bersamaan pada ${day}, ${sessionLabel} (Rentang tumpukan: ${dateRangeLabel}).`,
+              day,
+              periodId: slotA.periodId || 'all',
+              sessionId,
+              involvedRuleIds: [slotA.ruleId, slotB.ruleId],
+              severity: 'critical'
+            });
+          }
+        }
+
+        // 3. Room Conflict: Same room booked for multiple classes
+        if (slotA.roomId && slotA.roomId === slotB.roomId) {
+          const rm = rooms.find((r) => r.id === slotA.roomId);
+          const roomName = rm?.name || 'Ruangan';
+          const classA = classes.find((c) => c.id === slotA.classId)?.name || 'Kelas A';
+          const classB = classes.find((c) => c.id === slotB.classId)?.name || 'Kelas B';
+          const conflictKey = `rm_${slotA.roomId}_${day}_${sessionId}_${[slotA.ruleId, slotB.ruleId].sort().join('_')}`;
+
+          if (!recordedConflictKeys.has(conflictKey)) {
+            recordedConflictKeys.add(conflictKey);
+            conflicts.push({
+              id: `conflict-rm-${slotA.roomId}-${day}-${sessionId}-${slotA.ruleId.slice(0, 5)}`,
+              type: 'room',
+              title: `Tabrakan Pemakaian Ruangan: ${roomName}`,
+              description: `${roomName} digunakan bersamaan oleh ${classA} dan ${classB} pada ${day}, ${sessionLabel} (Rentang tumpukan: ${dateRangeLabel}).`,
+              day,
+              periodId: slotA.periodId || 'all',
+              sessionId,
+              involvedRuleIds: [slotA.ruleId, slotB.ruleId],
+              severity: 'critical'
+            });
+          }
+        }
       }
-      teacherMap.get(slot.teacherId)!.push(slot);
     }
-
-    teacherMap.forEach((teacherSlots, teacherId) => {
-      if (teacherSlots.length > 1) {
-        const teacher = teachers.find((t) => t.id === teacherId);
-        const teacherName = teacher?.name || 'Unknown Teacher';
-        const classNames = teacherSlots
-          .map((s) => classes.find((c) => c.id === s.classId)?.name || 'Class')
-          .join(' and ');
-
-        conflicts.push({
-          id: `conflict-tch-${teacherId}-${key}`,
-          type: 'teacher',
-          title: `Teacher Double-Booking: ${teacherName}`,
-          description: `${teacherName} is assigned to ${teacherSlots.length} classes (${classNames}) simultaneously on ${day} during ${sessionLabel} in ${periodLabel}.`,
-          day,
-          periodId,
-          sessionId,
-          involvedRuleIds: teacherSlots.map((s) => s.ruleId),
-          severity: 'critical'
-        });
-      }
-    });
-
-    // 2. Check Class Conflicts (Same class scheduled for > 1 subject/room at the same time)
-    const classMap = new Map<string, ResolvedSlot[]>();
-    for (const slot of timeSlots) {
-      if (!classMap.has(slot.classId)) {
-        classMap.set(slot.classId, []);
-      }
-      classMap.get(slot.classId)!.push(slot);
-    }
-
-    classMap.forEach((classSlots, classId) => {
-      if (classSlots.length > 1) {
-        const cls = classes.find((c) => c.id === classId);
-        const className = cls?.name || 'Unknown Class';
-        const subjectNames = classSlots
-          .map((s) => subjects.find((sub) => sub.id === s.subjectId)?.name || 'Subject')
-          .join(' and ');
-
-        conflicts.push({
-          id: `conflict-cls-${classId}-${key}`,
-          type: 'class',
-          title: `Class Overlap: ${className}`,
-          description: `${className} has multiple subjects (${subjectNames}) scheduled concurrently on ${day} during ${sessionLabel} in ${periodLabel}.`,
-          day,
-          periodId,
-          sessionId,
-          involvedRuleIds: classSlots.map((s) => s.ruleId),
-          severity: 'critical'
-        });
-      }
-    });
-
-    // 3. Check Room Conflicts (Same room booked for > 1 class/teacher at the same time)
-    const roomMap = new Map<string, ResolvedSlot[]>();
-    for (const slot of timeSlots) {
-      if (!roomMap.has(slot.roomId)) {
-        roomMap.set(slot.roomId, []);
-      }
-      roomMap.get(slot.roomId)!.push(slot);
-    }
-
-    roomMap.forEach((roomSlots, roomId) => {
-      if (roomSlots.length > 1) {
-        const room = rooms.find((r) => r.id === roomId);
-        const roomName = room?.name || 'Unknown Room';
-        const classNames = roomSlots
-          .map((s) => classes.find((c) => c.id === s.classId)?.name || 'Class')
-          .join(' and ');
-
-        conflicts.push({
-          id: `conflict-rm-${roomId}-${key}`,
-          type: 'room',
-          title: `Room Collision: ${roomName}`,
-          description: `${roomName} is double-booked for classes: ${classNames} on ${day} during ${sessionLabel} in ${periodLabel}.`,
-          day,
-          periodId,
-          sessionId,
-          involvedRuleIds: roomSlots.map((s) => s.ruleId),
-          severity: 'critical'
-        });
-      }
-    });
   });
 
   return conflicts;
@@ -223,18 +213,28 @@ export function buildScheduleMatrix(
   const rawRules = Array.isArray(db?.rules) ? db.rules : [];
 
   const sortedSessions = [...rawSessions].sort(
-    (a, b) => (a.order ?? a.sort_order ?? 0) - (b.order ?? b.sort_order ?? 0)
+    (a, b) => (a.order ?? (a as any).sort_order ?? 0) - (b.order ?? (b as any).sort_order ?? 0)
   );
   const periods = [...rawPeriods].sort(
-    (a, b) => (a.periodNumber ?? a.period_number ?? 0) - (b.periodNumber ?? b.period_number ?? 0)
+    (a, b) => (a.periodNumber ?? (a as any).period_number ?? 0) - (b.periodNumber ?? (b as any).period_number ?? 0)
   );
 
-  const resolvedSlots = computeResolvedSlots(rawRules);
+  const resolvedSlots = computeResolvedSlots(rawRules, rawPeriods);
+
+  const targetPreset = selectedPeriodId && selectedPeriodId !== 'all'
+    ? rawPeriods.find((p) => p.id === selectedPeriodId)
+    : null;
 
   // Filter slots if a filter is active
   const filteredSlots = resolvedSlots.filter((slot) => {
-    if (selectedPeriodId && selectedPeriodId !== 'all' && slot.periodId !== selectedPeriodId) {
-      return false;
+    if (targetPreset && targetPreset.startDate && targetPreset.endDate) {
+      if (!doesIntersectRange(slot.dateRanges || [], targetPreset.startDate, targetPreset.endDate)) {
+        return false;
+      }
+    } else if (selectedPeriodId && selectedPeriodId !== 'all') {
+      if (slot.periodId !== selectedPeriodId && (!slot.dateRanges || slot.dateRanges.length === 0)) {
+        return false;
+      }
     }
     if (filterType === 'class' && filterId && filterId !== 'all') return slot.classId === filterId;
     if (filterType === 'teacher' && filterId && filterId !== 'all') return slot.teacherId === filterId;
@@ -259,7 +259,7 @@ export function buildScheduleMatrix(
         (c) =>
           c.day === day &&
           c.sessionId === session.id &&
-          (!selectedPeriodId || selectedPeriodId === 'all' || c.periodId === selectedPeriodId)
+          (!targetPreset || !c.periodId || c.periodId === 'all' || c.periodId === targetPreset.id)
       );
 
       if (matchingSlots.length > 0) {
@@ -274,8 +274,7 @@ export function buildScheduleMatrix(
           classId: primarySlot.classId,
           teacherId: primarySlot.teacherId,
           roomId: primarySlot.roomId,
-          hasException: primarySlot.hasException,
-          exceptionDetail: primarySlot.exceptionDetail,
+          hasException: false,
           conflicts: matchingConflicts,
           slots: matchingSlots
         });
