@@ -26,10 +26,7 @@ import {
   Download,
   Filter,
   RefreshCw,
-  ShieldAlert,
-  ShieldCheck,
-  ChevronDown,
-  ChevronUp
+  X
 } from 'lucide-react';
 import { exportRulesToCsv, downloadCsvFile } from '../../utils/csvHelper';
 import { detectConflicts } from '../../utils/scheduleEngine';
@@ -44,7 +41,7 @@ interface RulesDatabaseTabProps {
   onDeleteRule?: (ruleId: string) => void;
   isAdmin?: boolean;
   onOpenAdminLogin?: () => void;
-  initialSubView?: 'rules' | 'kaldik' | 'integrity';
+  initialSubView?: 'rules' | 'kaldik';
 }
 
 export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
@@ -58,12 +55,14 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
   onOpenAdminLogin,
   initialSubView = 'rules'
 }) => {
-  // Sub-view mode: 'rules' (Aturan Jadwal KBM) vs 'kaldik' (Kaldik Events Database) vs 'integrity' (Diagnostik)
-  const [activeSubView, setActiveSubView] = useState<'rules' | 'kaldik' | 'integrity'>(initialSubView);
+  // Sub-view mode: 'rules' (Aturan Jadwal KBM) vs 'kaldik' (Kaldik Events Database)
+  const [activeSubView, setActiveSubView] = useState<'rules' | 'kaldik'>(
+    initialSubView === 'kaldik' ? 'kaldik' : 'rules'
+  );
 
   useEffect(() => {
     if (initialSubView) {
-      setActiveSubView(initialSubView);
+      setActiveSubView(initialSubView === 'kaldik' ? 'kaldik' : 'rules');
     }
   }, [initialSubView]);
 
@@ -75,8 +74,6 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [filterPeriod, setFilterPeriod] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'exceptions' | 'integrity_issue'>('all');
-  const [showIntegrityPanel, setShowIntegrityPanel] = useState(false);
-  const [showPeriodsOverview, setShowPeriodsOverview] = useState(false);
 
   // In-UI Confirmation state for deleting a rule (No window.confirm!)
   const [ruleToDelete, setRuleToDelete] = useState<ScheduleRule | null>(null);
@@ -263,82 +260,47 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Top Segmented Switcher: Rules vs Kaldik vs Integrity */}
-      <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 overflow-x-auto">
+      {/* Top Segmented Switcher */}
+      <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 overflow-x-auto">
           <button
             type="button"
             id="subview-btn-rules"
             onClick={() => setActiveSubView('rules')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
               activeSubView === 'rules'
                 ? 'bg-indigo-600 text-white shadow-2xs'
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/70'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Aturan Jadwal KBM ({db.rules.length})</span>
+            <span>Aturan Jadwal KBM</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+              activeSubView === 'rules' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {db.rules.length}
+            </span>
           </button>
 
           <button
             type="button"
             id="subview-btn-kaldik"
             onClick={() => setActiveSubView('kaldik')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
               activeSubView === 'kaldik'
                 ? 'bg-amber-600 text-white shadow-2xs'
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/70'
             }`}
           >
-            <CalendarDays className="w-3.5 h-3.5 text-amber-500" />
-            <span>Database Event Kaldik ({(db.kaldikEvents || []).length})</span>
-          </button>
-
-          <button
-            type="button"
-            id="subview-btn-integrity"
-            onClick={() => setActiveSubView('integrity')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-              activeSubView === 'integrity'
-                ? 'bg-purple-600 text-white shadow-2xs'
-                : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/70'
-            }`}
-          >
-            {integrityAnalysis.totalIssues > 0 ? (
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-            ) : (
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            )}
-            <span>Diagnostik Integritas</span>
-            <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                integrityAnalysis.totalIssues > 0
-                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                  : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-              }`}
-            >
-              {integrityAnalysis.totalIssues > 0 ? `${integrityAnalysis.totalIssues} Isu` : 'OK'}
+            <CalendarDays className="w-3.5 h-3.5" />
+            <span>Event Kaldik</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+              activeSubView === 'kaldik' ? 'bg-amber-700 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {(db.kaldikEvents || []).length}
             </span>
           </button>
         </div>
-
-        {activeSubView === 'rules' && onAddRule && (
-          <button
-            type="button"
-            id="btn-add-rule-from-database"
-            onClick={() => {
-              if (!isAdmin && onOpenAdminLogin) {
-                onOpenAdminLogin();
-                return;
-              }
-              onAddRule();
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors cursor-pointer shadow-2xs ml-auto"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Tambah Aturan Jadwal</span>
-          </button>
-        )}
       </div>
 
       {/* VIEW 1: KALDIK EVENTS DATABASE */}
@@ -351,509 +313,129 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
         />
       )}
 
-      {/* VIEW 2: INTEGRITY DIAGNOSTICS VIEW */}
-      {activeSubView === 'integrity' && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <div className={`p-2 rounded-lg ${integrityAnalysis.totalIssues > 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                {integrityAnalysis.totalIssues > 0 ? <AlertTriangle className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Laporan Integritas &amp; Konflik Jadwal
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Pemindaian menyeluruh terhadap konflik slot (guru, kelas, ruang), tumpang tindih tanggal fase/periode, dan referensi entitas.
-                </p>
-              </div>
-            </div>
-
-            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-              integrityAnalysis.totalIssues > 0
-                ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-            }`}>
-              {integrityAnalysis.totalIssues > 0 ? `${integrityAnalysis.totalIssues} Masalah Ditemukan` : 'Integritas 100% Valid'}
-            </span>
-          </div>
-
-          {integrityAnalysis.totalIssues === 0 ? (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center text-emerald-900 space-y-2">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-              <div className="font-bold text-sm">Semua Aturan Jadwal &amp; Kalender Berjalan Selaras!</div>
-              <p className="text-xs text-emerald-700 max-w-md mx-auto">
-                Tidak ada guru atau kelas yang terjadwal ganda pada waktu bersamaan, tidak ada periode beririsan tanggal, dan seluruh referensi entitas lengkap.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Conflicts */}
-              {integrityAnalysis.conflicts.length > 0 && (
-                <div className="space-y-2.5">
-                  <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    <span>Konflik Jadwal Nyata ({integrityAnalysis.conflicts.length} Kasus):</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {integrityAnalysis.conflicts.map((conflict, idx) => (
-                      <div
-                        key={conflict.id || idx}
-                        className="bg-amber-50/50 p-3.5 rounded-xl border border-amber-200 shadow-2xs text-xs space-y-2"
-                      >
-                        <div className="flex items-center justify-between font-bold text-slate-900">
-                          <span className="text-amber-950 font-bold">{conflict.title}</span>
-                          <span className="text-[10px] font-mono text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-bold">
-                            {dayNameIdMap[conflict.day] || conflict.day}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-700 leading-relaxed">
-                          {conflict.description}
-                        </p>
-                        <div className="space-y-1.5 pt-1.5 border-t border-amber-200/60">
-                          <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
-                            Aturan Jadwal Terkait:
-                          </div>
-                          {conflict.involvedRuleIds.map((rid) => {
-                            const r = db.rules.find((rule) => rule.id === rid);
-                            if (!r) return null;
-                            const subj = subjectMap.get(r.subjectId);
-                            const tch = teacherMap.get(r.teacherId);
-                            const cls = classMap.get(r.classId);
-                            return (
-                              <div
-                                key={r.id}
-                                className="flex items-center justify-between text-[11px] bg-white p-2 rounded-lg border border-amber-200"
-                              >
-                                <span className="font-medium text-slate-800">
-                                  <code className="font-mono font-bold text-indigo-700 mr-1.5">{r.id}</code>
-                                  {subj?.name || r.subjectId} ({cls?.name || r.classId} • {tch?.name || r.teacherId})
-                                </span>
-                                {onEditRule && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onEditRule(r)}
-                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer ml-2 shrink-0"
-                                  >
-                                    Edit Aturan
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Period overlaps */}
-              {integrityAnalysis.periodOverlaps.length > 0 && (
-                <div className="space-y-2.5 pt-3 border-t border-slate-100">
-                  <div className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-purple-600" />
-                    <span>Fase / Periode Beririsan ({integrityAnalysis.periodOverlaps.length} Kasus):</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {integrityAnalysis.periodOverlaps.map((overlap, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-purple-50/50 p-3.5 rounded-xl border border-purple-200 shadow-2xs text-xs space-y-1"
-                      >
-                        <div className="font-bold text-slate-900">
-                          {overlap.period1.name} &amp; {overlap.period2.name}
-                        </div>
-                        <div className="text-[11px] font-mono text-purple-800">
-                          Rentang tanggal bertabrakan: {overlap.overlapStart} s.d. {overlap.overlapEnd}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Orphaned rules */}
-              {integrityAnalysis.orphanedRules.length > 0 && (
-                <div className="space-y-2.5 pt-3 border-t border-slate-100">
-                  <div className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-rose-600" />
-                    <span>Referensi Entitas Tidak Lengkap ({integrityAnalysis.orphanedRules.length} Aturan):</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {integrityAnalysis.orphanedRules.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-rose-50/50 p-3.5 rounded-xl border border-rose-200 shadow-2xs text-xs space-y-1"
-                      >
-                        <div className="font-bold text-slate-900 flex items-center justify-between">
-                          <code className="text-rose-700 font-mono">{item.rule.id}</code>
-                          {onEditRule && (
-                            <button
-                              type="button"
-                              onClick={() => onEditRule(item.rule)}
-                              className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
-                            >
-                              Perbaiki Aturan
-                            </button>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-rose-800 font-medium">
-                          {item.reason}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* VIEW 3: RULES TABLE VIEW */}
+      {/* VIEW 2: RULES TABLE VIEW */}
       {activeSubView === 'rules' && (
         <div className="space-y-4">
-          {/* Top Banner: Metrics & Quick Actions */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+          {/* Header & Inline Stats Summary */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-200/70 text-indigo-700">
-                  <Layers className="w-5 h-5" />
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200/70 text-indigo-700 flex items-center justify-center shrink-0">
+                  <Layers className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-slate-900">
-                      Manajemen Aturan Jadwal (Rules &amp; Periods)
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800">
-                      {stats.total} Aturan
-                    </span>
-                    {integrityAnalysis.totalIssues > 0 ? (
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        <span>{integrityAnalysis.totalIssues} Isu Integritas</span>
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Integritas OK</span>
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Jelajahi seluruh aturan pemetaan jadwal, keterikatan periode kalender, dan diagnosa integritas jadwal.
+                  <h2 className="text-sm font-bold text-slate-900 leading-tight">
+                    Manajemen Aturan Jadwal KBM
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Pemetaan jadwal reguler, alokasi guru, kelas, ruang, dan keterikatan fase/periode.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowIntegrityPanel(!showIntegrityPanel)}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-colors cursor-pointer ${
-                    showIntegrityPanel
-                      ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs'
-                      : integrityAnalysis.totalIssues > 0
-                      ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {integrityAnalysis.totalIssues > 0 ? (
-                    <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
-                  ) : (
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  )}
-                  <span>Integritas ({integrityAnalysis.totalIssues})</span>
-                  {showIntegrityPanel ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {/* Inline stats pills */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-lg">
+                  <span className="text-slate-500 font-medium">Total:</span>
+                  <span className="font-bold text-slate-800">{stats.total}</span>
+                  <span className="text-[10px] text-slate-400">aturan</span>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowPeriodsOverview(!showPeriodsOverview)}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-colors cursor-pointer ${
-                    showPeriodsOverview
-                      ? 'bg-purple-100 text-purple-900 border-purple-300 shadow-2xs'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Jelajah Fase ({db.periods.length})</span>
-                  {showPeriodsOverview ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50/70 border border-emerald-200/70 rounded-lg text-emerald-900">
+                  <span className="text-emerald-700 font-medium">Aktif:</span>
+                  <span className="font-bold">{stats.active}</span>
+                </div>
 
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/70 rounded-lg text-slate-700">
+                  <span className="text-slate-500 font-medium">Non-Aktif:</span>
+                  <span className="font-bold">{stats.inactive}</span>
+                </div>
+
+                {stats.withExceptions > 0 && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50/70 border border-amber-200/70 rounded-lg text-amber-900">
+                    <span className="text-amber-700 font-medium">Khusus:</span>
+                    <span className="font-bold">{stats.withExceptions}</span>
+                  </div>
+                )}
+
+                {/* CSV Download Button */}
                 <button
                   type="button"
                   onClick={() => {
                     const csv = exportRulesToCsv(db);
                     downloadCsvFile(`rules_${new Date().toISOString().slice(0, 10)}.csv`, csv);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                   title="Unduh daftar aturan jadwal dalam format CSV"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Rules CSV</span>
+                  <span>CSV</span>
                 </button>
+
+                {/* Add Rule Button */}
+                {onAddRule && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isAdmin && onOpenAdminLogin) {
+                        onOpenAdminLogin();
+                        return;
+                      }
+                      onAddRule();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-2xs transition-colors cursor-pointer ml-auto sm:ml-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Aturan</span>
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Quick Counters: Simple list */}
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-3 pt-2.5 border-t border-slate-100 text-xs text-slate-500">
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                <span>Total:</span>
-                <strong className="text-slate-800 font-semibold">{stats.total} aturan</strong>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>Aktif:</span>
-                <strong className="text-emerald-700 font-semibold">{stats.active}</strong>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                <span>Non-Aktif:</span>
-                <strong className="text-slate-700 font-semibold">{stats.inactive}</strong>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                <span>Pengecualian / Khusus:</span>
-                <strong className="text-amber-700 font-semibold">{stats.withExceptions}</strong>
-              </span>
-            </div>
-          </div>
-
-          {/* Collapsible Panel 1: Data Integrity & Diagnostic Inspector */}
-          {showIntegrityPanel && (
-            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-amber-700" />
-                  <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                    Diagnostik Integritas &amp; Konflik Data Jadwal
-                  </h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('integrity_issue')}
-                  className="text-xs font-semibold text-amber-800 hover:text-amber-950 underline cursor-pointer"
-                >
-                  Filter Tabel Aturan Bermasalah
-                </button>
-              </div>
-
-              {integrityAnalysis.totalIssues === 0 ? (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-900 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Semua aturan jadwal dan periode dalam keadaan valid! Tidak ditemukan konflik jadwal ganda atau periode beririsan.</span>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Conflicts list */}
-                  {integrityAnalysis.conflicts.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
-                        <span>Konflik Jadwal Nyata ({integrityAnalysis.conflicts.length} kasus):</span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                        {integrityAnalysis.conflicts.map((conflict, idx) => (
-                          <div
-                            key={conflict.id || idx}
-                            className="bg-white p-3 rounded-lg border border-amber-200 shadow-2xs text-xs space-y-1.5"
-                          >
-                            <div className="flex items-center justify-between font-bold text-slate-800">
-                              <span className="text-amber-900">{conflict.title}</span>
-                              <span className="text-[11px] font-mono text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-bold">
-                                {dayNameIdMap[conflict.day] || conflict.day}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-600 leading-relaxed">
-                              {conflict.description}
-                            </p>
-                            <div className="space-y-1 pl-1 pt-1 border-t border-slate-100">
-                              <span className="text-[10px] text-slate-400 font-bold uppercase">Aturan yang Terlibat:</span>
-                              {conflict.involvedRuleIds.map((rid) => {
-                                const r = db.rules.find((rule) => rule.id === rid);
-                                if (!r) return null;
-                                const subj = subjectMap.get(r.subjectId);
-                                const tch = teacherMap.get(r.teacherId);
-                                const cls = classMap.get(r.classId);
-                                return (
-                                  <div
-                                    key={r.id}
-                                    className="flex items-center justify-between text-[11px] bg-slate-50 p-1.5 rounded border border-slate-200"
-                                  >
-                                    <span className="font-medium text-slate-800">
-                                      <code className="font-mono font-bold text-indigo-700 mr-1">{r.id}</code>
-                                      {subj?.name || r.subjectId} ({cls?.name || r.classId} • {tch?.name || r.teacherId})
-                                    </span>
-                                    {onEditRule && (
-                                      <button
-                                        type="button"
-                                        onClick={() => onEditRule(r)}
-                                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
-                                      >
-                                        Edit
-                                      </button>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Period overlaps */}
-                  {integrityAnalysis.periodOverlaps.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-amber-200/70">
-                      <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-purple-700" />
-                        <span>Periode Kalender Beririsan ({integrityAnalysis.periodOverlaps.length} irisan):</span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                        {integrityAnalysis.periodOverlaps.map((overlap, idx) => (
-                          <div
-                            key={idx}
-                            className="bg-white p-3 rounded-lg border border-purple-200 shadow-2xs text-xs space-y-1"
-                          >
-                            <div className="font-bold text-slate-900">
-                              {overlap.period1.name} &amp; {overlap.period2.name}
-                            </div>
-                            <div className="text-[11px] font-mono text-purple-800">
-                              Irisan rentang tanggal: {overlap.overlapStart} s.d. {overlap.overlapEnd}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Collapsible Panel 2: Periods Overview & Cross-Reference */}
-          {showPeriodsOverview && (
-            <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-4 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-purple-700" />
-                  <h4 className="text-xs font-bold text-purple-950 uppercase tracking-wide">
-                    Daftar Periode / Fase Akademik &amp; Keterkaitan Aturan
-                  </h4>
-                </div>
-                <span className="text-[11px] text-purple-800">
-                  Total: {db.periods.length} fase
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                {sortedPeriods.map((p) => {
-                  const ruleCount = db.rules.filter((r) => r.periodIds?.includes(p.id)).length;
-                  const isSelected = filterPeriod === p.id;
-                  return (
-                    <div
-                      key={p.id}
-                      onClick={() => setFilterPeriod(isSelected ? 'all' : p.id)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-purple-600 text-white border-purple-700 shadow-sm'
-                          : 'bg-white hover:bg-purple-50/50 border-slate-200 text-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[10px] font-mono uppercase font-bold ${isSelected ? 'text-purple-200' : 'text-slate-400'}`}>
-                          {p.id}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          isSelected ? 'bg-purple-700 text-white' : 'bg-purple-100 text-purple-800'
-                        }`}>
-                          {ruleCount} Aturan
-                        </span>
-                      </div>
-                      <div className={`font-bold text-xs mt-1 truncate ${isSelected ? 'text-white' : 'text-slate-900'}`}>
-                        {p.name}
-                      </div>
-                      <div className={`text-[11px] font-mono mt-1 ${isSelected ? 'text-purple-100' : 'text-slate-500'}`}>
-                        {p.startDate} ~ {p.endDate}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Filters Bar */}
-          <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              {/* Search Input */}
+            {/* Streamlined Filter Toolbar */}
+            <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              {/* Search bar */}
               <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Cari ID aturan, mapel, guru, kelas, sesi, atau ruangan..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="text-xs pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-colors placeholder:text-slate-400"
                 />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    title="Hapus pencarian"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
 
-              {/* Reset Filters */}
-              {(filterDay !== 'all' ||
-                filterClass !== 'all' ||
-                filterTeacher !== 'all' ||
-                filterSubject !== 'all' ||
-                filterPeriod !== 'all' ||
-                filterStatus !== 'all' ||
-                search) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearch('');
-                    setFilterDay('all');
-                    setFilterClass('all');
-                    setFilterTeacher('all');
-                    setFilterSubject('all');
-                    setFilterPeriod('all');
-                    setFilterStatus('all');
-                  }}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Reset Filter</span>
-                </button>
-              )}
-            </div>
-
-            {/* Dropdowns Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1 border-t border-slate-100 text-xs">
-              {/* Status Filter */}
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Status</label>
+              {/* Filter Selects */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* Status Filter */}
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value as any)}
-                  className="w-full text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value="all">Semua Status</option>
                   <option value="active">Aktif Saja</option>
-                  <option value="inactive">Non-Aktif Saja</option>
-                  <option value="exceptions">Ada Pengecualian</option>
-                  <option value="integrity_issue">⚠️ Ada Isu Integritas</option>
+                  <option value="inactive">Non-Aktif</option>
+                  <option value="exceptions">Pengecualian</option>
+                  <option value="integrity_issue">⚠️ Isu Integritas</option>
                 </select>
-              </div>
 
-              {/* Hari Filter */}
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Hari</label>
+                {/* Hari Filter */}
                 <select
                   value={filterDay}
                   onChange={(e) => setFilterDay(e.target.value)}
-                  className="w-full text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value="all">Semua Hari</option>
                   {daysList.map((d) => (
@@ -862,32 +444,26 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                     </option>
                   ))}
                 </select>
-              </div>
 
-              {/* Program / Kelas Filter */}
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Program / Kelas</label>
+                {/* Kelas Filter */}
                 <select
                   value={filterClass}
                   onChange={(e) => setFilterClass(e.target.value)}
-                  className="w-full text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[130px] truncate"
                 >
-                  <option value="all">Semua Program</option>
+                  <option value="all">Semua Kelas</option>
                   {db.classes.map((cls) => (
                     <option key={cls.id} value={cls.id}>
                       {cls.name}
                     </option>
                   ))}
                 </select>
-              </div>
 
-              {/* Guru Filter */}
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Guru</label>
+                {/* Guru Filter */}
                 <select
                   value={filterTeacher}
                   onChange={(e) => setFilterTeacher(e.target.value)}
-                  className="w-full text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[140px] truncate"
                 >
                   <option value="all">Semua Guru</option>
                   {db.teachers.map((t) => (
@@ -896,32 +472,26 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                     </option>
                   ))}
                 </select>
-              </div>
 
-              {/* Mapel Filter */}
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Mata Pelajaran</label>
+                {/* Mapel Filter */}
                 <select
                   value={filterSubject}
                   onChange={(e) => setFilterSubject(e.target.value)}
-                  className="w-full text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[140px] truncate"
                 >
                   <option value="all">Semua Mapel</option>
                   {db.subjects.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.code} - {s.name}
+                      {s.name}
                     </option>
                   ))}
                 </select>
-              </div>
 
-              {/* Periode / Fase Filter */}
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Fase / Periode</label>
+                {/* Periode Filter */}
                 <select
                   value={filterPeriod}
                   onChange={(e) => setFilterPeriod(e.target.value)}
-                  className="w-full text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[140px] truncate"
                 >
                   <option value="all">Semua Fase</option>
                   {sortedPeriods.map((p) => (
@@ -930,6 +500,33 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                     </option>
                   ))}
                 </select>
+
+                {/* Reset Button */}
+                {(filterDay !== 'all' ||
+                  filterClass !== 'all' ||
+                  filterTeacher !== 'all' ||
+                  filterSubject !== 'all' ||
+                  filterPeriod !== 'all' ||
+                  filterStatus !== 'all' ||
+                  search) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch('');
+                      setFilterDay('all');
+                      setFilterClass('all');
+                      setFilterTeacher('all');
+                      setFilterSubject('all');
+                      setFilterPeriod('all');
+                      setFilterStatus('all');
+                    }}
+                    className="inline-flex items-center gap-1 text-xs py-1.5 px-2.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors cursor-pointer"
+                    title="Reset filter"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

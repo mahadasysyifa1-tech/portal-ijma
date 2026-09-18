@@ -16,7 +16,8 @@ import {
   Sparkles,
   BookOpen,
   Coffee,
-  Sun
+  Sun,
+  X
 } from 'lucide-react';
 import { DatabaseState, KaldikEvent, KaldikEventType, Period } from '../../types';
 import { KaldikEventModal } from '../kaldik/KaldikEventModal';
@@ -209,153 +210,145 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
 
   return (
     <div className="space-y-4">
-      {/* Top Banner & Action */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-                <CalendarDays className="w-4 h-4" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">
-                  Database Kalender Akademik & Event (Kaldik)
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Rekam data resmi rentang KBM, jadwal asesmen / ujian, hari libur madrasah, dan kegiatan rutin santri.
-                </p>
-              </div>
+      {/* Header & Inline Stats Summary */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+              <CalendarDays className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 leading-tight">
+                Database Kalender Akademik &amp; Event (Kaldik)
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Rekam data rentang KBM, jadwal asesmen, libur, dan kegiatan santri.
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {/* Inline stats pills */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-lg">
+              <span className="text-slate-500 font-medium">Total:</span>
+              <span className="font-bold text-slate-800">{stats.total}</span>
+              <span className="text-[10px] text-slate-400">event</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50/70 border border-amber-200/70 rounded-lg text-amber-900">
+              <span className="text-amber-700 font-medium">KBM:</span>
+              <span className="font-bold">{stats.kbmCount}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50/70 border border-rose-200/70 rounded-lg text-rose-900">
+              <span className="text-rose-700 font-medium">Libur:</span>
+              <span className="font-bold">{stats.holidayCount}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50/70 border border-purple-200/70 rounded-lg text-purple-900">
+              <span className="text-purple-700 font-medium">Ujian:</span>
+              <span className="font-bold">{stats.examCount}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50/70 border border-emerald-200/70 rounded-lg text-emerald-900">
+              <span className="text-emerald-700 font-medium">Kegiatan:</span>
+              <span className="font-bold">{stats.activityCount}</span>
+            </div>
+
+            {/* Add Button */}
             <button
               type="button"
               onClick={handleOpenAdd}
-              className="flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-2xs transition-colors cursor-pointer w-full sm:w-auto"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-2xs transition-colors cursor-pointer ml-auto sm:ml-1"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Tambah Event Kaldik</span>
+              <span>Tambah Event</span>
             </button>
           </div>
         </div>
 
-        {/* Quick Counters: Simple list */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-3 pt-2.5 border-t border-slate-100 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-            <span>Total:</span>
-            <strong className="text-slate-800 font-semibold">{stats.total} event</strong>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-            <span>KBM Resmi:</span>
-            <strong className="text-amber-700 font-semibold">{stats.kbmCount}</strong>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-            <span>Libur:</span>
-            <strong className="text-rose-700 font-semibold">{stats.holidayCount}</strong>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-            <span>Ujian / Asesmen:</span>
-            <strong className="text-purple-700 font-semibold">{stats.examCount}</strong>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>Kegiatan Santri:</span>
-            <strong className="text-emerald-700 font-semibold">{stats.activityCount}</strong>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-            <span>Rutin:</span>
-            <strong className="text-indigo-700 font-semibold">{stats.recurringCount}</strong>
-          </span>
-        </div>
-      </div>
-
-      {/* Filter Toolbar */}
-      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-2.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[220px]">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        {/* Streamlined Filter Toolbar */}
+        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* Search bar */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Cari judul event, deskripsi, atau periode..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-amber-500"
+              className="text-xs pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition-colors placeholder:text-slate-400"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                title="Hapus pencarian"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
 
-          {/* Reset Filters */}
-          {(filterType !== 'all' || filterPeriod !== 'all' || filterRecurrence !== 'all' || search) && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearch('');
-                setFilterType('all');
-                setFilterPeriod('all');
-                setFilterRecurrence('all');
-              }}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span>Reset Filter</span>
-            </button>
-          )}
-        </div>
-
-        {/* Dropdowns Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-100 text-xs">
-          {/* Kategori Tipe */}
-          <div>
-            <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Kategori / Tipe</label>
+          {/* Filter Selects */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Kategori / Tipe */}
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="w-full text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
             >
               <option value="all">Semua Tipe Agenda</option>
-              <option value="kbm">KBM Resmi</option>
-              <option value="holiday">Hari Libur</option>
-              <option value="exam">Asesmen / Ujian</option>
-              <option value="activity">Kegiatan Santri</option>
+              <option value="kbm">KBM Resmi ({stats.kbmCount})</option>
+              <option value="holiday">Hari Libur ({stats.holidayCount})</option>
+              <option value="exam">Asesmen / Ujian ({stats.examCount})</option>
+              <option value="activity">Kegiatan Santri ({stats.activityCount})</option>
               <option value="general">Umum / Akademik</option>
             </select>
-          </div>
 
-          {/* Terkait Periode */}
-          <div>
-            <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Terkait Periode / Fase</label>
+            {/* Terkait Periode */}
             <select
               value={filterPeriod}
               onChange={(e) => setFilterPeriod(e.target.value)}
-              className="w-full text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer max-w-[200px] truncate"
             >
-              <option value="all">Semua Periode</option>
-              {periods.map(p => (
+              <option value="all">Semua Periode ({periods.length})</option>
+              {periods.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({p.startDate} s.d {p.endDate})
+                  {p.name}
                 </option>
               ))}
             </select>
-          </div>
 
-          {/* Pengulangan */}
-          <div>
-            <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Pengulangan</label>
+            {/* Pengulangan */}
             <select
               value={filterRecurrence}
               onChange={(e) => setFilterRecurrence(e.target.value)}
-              className="w-full text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
             >
-              <option value="all">Semua Event</option>
-              <option value="once">Sekali Jalan (Rentang Tanggal)</option>
-              <option value="recurring">Rutin Mingguan / Harian</option>
+              <option value="all">Semua Pengulangan</option>
+              <option value="once">Sekali Jalan</option>
+              <option value="recurring">Rutin ({stats.recurringCount})</option>
             </select>
+
+            {/* Reset Button */}
+            {(filterType !== 'all' || filterPeriod !== 'all' || filterRecurrence !== 'all' || search) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setFilterType('all');
+                  setFilterPeriod('all');
+                  setFilterRecurrence('all');
+                }}
+                className="inline-flex items-center gap-1 text-xs py-1.5 px-2.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors cursor-pointer"
+                title="Reset filter"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

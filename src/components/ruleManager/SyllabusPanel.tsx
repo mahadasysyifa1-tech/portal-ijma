@@ -21,7 +21,8 @@ import {
   Layers,
   ArrowRight,
   TrendingUp,
-  BookmarkCheck
+  BookmarkCheck,
+  X
 } from 'lucide-react';
 import {
   getScopedUnits,
@@ -44,6 +45,7 @@ interface PackageItem {
   classObj: ClassEntity;
   subjectUnits: SyllabusUnit[];
   scopedUnits: SyllabusUnit[];
+  totalPages: number;
   totalMeetings: number;
   existingScope: SyllabusScope | undefined;
   startUnitId: string;
@@ -110,9 +112,19 @@ export const SyllabusPanel: React.FC<SyllabusPanelProps> = ({
           existingScope?.end_unit_id ||
           (scopedUnits[scopedUnits.length - 1]?.id ?? sUnits[sUnits.length - 1]?.id ?? '');
 
+        // Calculate total pages across scoped syllabus units
+        const totalPages = scopedUnits.reduce((acc, u) => {
+          const pStart = typeof u.page_start === 'number' ? u.page_start : parseInt(String(u.page_start), 10);
+          const pEnd = typeof u.page_end === 'number' ? u.page_end : parseInt(String(u.page_end), 10);
+          if (!isNaN(pStart) && !isNaN(pEnd) && pEnd >= pStart) {
+            return acc + (pEnd - pStart + 1);
+          }
+          return acc + 1;
+        }, 0);
+
         const laju =
-          totalMeetings > 0 && scopedUnits.length > 0
-            ? scopedUnits.length / totalMeetings
+          totalMeetings > 0 && totalPages > 0
+            ? totalPages / totalMeetings
             : null;
 
         packages.push({
@@ -121,6 +133,7 @@ export const SyllabusPanel: React.FC<SyllabusPanelProps> = ({
           classObj: cls,
           subjectUnits: sUnits,
           scopedUnits,
+          totalPages,
           totalMeetings,
           existingScope,
           startUnitId,
@@ -254,86 +267,94 @@ export const SyllabusPanel: React.FC<SyllabusPanelProps> = ({
     });
   };
 
+  const hasActiveFilter =
+    search.trim() !== '' ||
+    filterClass !== 'all' ||
+    filterSubject !== 'all' ||
+    filterSchedule !== 'all' ||
+    filterScope !== 'all';
+
+  const resetFilters = () => {
+    setSearch('');
+    setFilterClass('all');
+    setFilterSubject('all');
+    setFilterSchedule('all');
+    setFilterScope('all');
+  };
+
   return (
-    <div className="space-y-4">
-      {/* Top Banner & Quick Metrics */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-indigo-600" />
-              <span>Distribusi Silabus &amp; Pacing Materi Per Paket</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Rencanakan alokasi bab awal dan bab akhir untuk setiap paket mata pelajaran dan kelas, serta pantau laju materi berdasarkan total pertemuan kalender.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200/80">
-              Studio Perencanaan Silabus
-            </span>
-          </div>
-        </div>
-
-        {/* 4 Metric Badges */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3">
-            <span className="text-[11px] font-medium text-slate-500 block">Total Paket Kurikulum</span>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-lg font-extrabold text-slate-900">{stats.total}</span>
-              <span className="text-[11px] text-slate-500">paket</span>
+    <div className="space-y-3">
+      {/* Header & Inline Stats Summary */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+              <BookOpen className="w-4 h-4 text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                Distribusi Silabus &amp; Pacing
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Atur cakupan bab per kelas dan pantau target laju materi.
+              </p>
             </div>
           </div>
 
-          <div className="bg-indigo-50/60 border border-indigo-200/70 rounded-xl p-3">
-            <span className="text-[11px] font-medium text-indigo-700 block">Paket Terjadwal (KBM)</span>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-lg font-extrabold text-indigo-950">{stats.scheduled}</span>
-              <span className="text-[11px] text-indigo-600">/ {stats.total} paket</span>
+          {/* Compact Inline Pill Stats */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-lg">
+              <span className="text-slate-500 font-medium">Paket:</span>
+              <span className="font-bold text-slate-800">{stats.total}</span>
+              <span className="text-[10px] text-slate-400">({stats.scheduled} KBM)</span>
             </div>
-          </div>
 
-          <div className="bg-amber-50/60 border border-amber-200/70 rounded-xl p-3">
-            <span className="text-[11px] font-medium text-amber-800 block">Scope Dikustomisasi</span>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-lg font-extrabold text-amber-950">{stats.withCustomScope}</span>
-              <span className="text-[11px] text-amber-700">paket khusus</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50/70 border border-amber-200/70 rounded-lg text-amber-900">
+              <span className="text-amber-700 font-medium">Kustom:</span>
+              <span className="font-bold">{stats.withCustomScope}</span>
             </div>
-          </div>
 
-          <div className="bg-emerald-50/60 border border-emerald-200/70 rounded-xl p-3">
-            <span className="text-[11px] font-medium text-emerald-800 block">Rata-rata Laju Materi</span>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-lg font-extrabold text-emerald-950">{stats.avgLaju.toFixed(2)}</span>
-              <span className="text-[11px] text-emerald-700">bab / pertemuan</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50/70 border border-emerald-200/70 rounded-lg text-emerald-900">
+              <span className="text-emerald-700 font-medium">Rata-rata:</span>
+              <span className="font-bold">{stats.avgLaju.toFixed(1)}</span>
+              <span className="text-[10px] text-emerald-600">hal/sesi</span>
             </div>
           </div>
         </div>
-      </div>
+      
 
-      {/* Filter Toolbar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      {/* Streamlined Filter Toolbar */}
+      
+        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           {/* Search bar */}
-          <div className="relative flex-1 min-w-[220px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Cari mapel, kode, atau nama kelas..."
+              placeholder="Cari mapel, kode, atau kelas..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl w-full focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-colors"
+              className="text-xs pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-colors placeholder:text-slate-400"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                title="Hapus pencarian"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Filter Selects */}
+          <div className="flex flex-wrap items-center gap-1.5">
             {/* Filter Kelas */}
             <select
               value={filterClass}
               onChange={(e) => setFilterClass(e.target.value)}
-              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
             >
               <option value="all">Semua Kelas ({db.classes.length})</option>
               {db.classes.map((cls) => (
@@ -347,7 +368,7 @@ export const SyllabusPanel: React.FC<SyllabusPanelProps> = ({
             <select
               value={filterSubject}
               onChange={(e) => setFilterSubject(e.target.value)}
-              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
             >
               <option value="all">Semua Mapel ({db.subjects.length})</option>
               {db.subjects.map((sub) => (
@@ -361,23 +382,36 @@ export const SyllabusPanel: React.FC<SyllabusPanelProps> = ({
             <select
               value={filterSchedule}
               onChange={(e) => setFilterSchedule(e.target.value as any)}
-              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
             >
-              <option value="all">Status Jadwal (Semua)</option>
-              <option value="scheduled">Terjadwal Saja ({stats.scheduled})</option>
-              <option value="unscheduled">Belum Terjadwal ({stats.total - stats.scheduled})</option>
+              <option value="all">Semua Jadwal</option>
+              <option value="scheduled">Terjadwal ({stats.scheduled})</option>
+              <option value="unscheduled">Belum ({stats.total - stats.scheduled})</option>
             </select>
 
             {/* Filter Scope Override */}
             <select
               value={filterScope}
               onChange={(e) => setFilterScope(e.target.value as any)}
-              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
             >
-              <option value="all">Status Scope (Semua)</option>
-              <option value="custom">Kustom Saja ({stats.withCustomScope})</option>
-              <option value="default">Penuh / Default ({stats.total - stats.withCustomScope})</option>
+              <option value="all">Semua Scope</option>
+              <option value="custom">Kustom ({stats.withCustomScope})</option>
+              <option value="default">Default ({stats.total - stats.withCustomScope})</option>
             </select>
+
+            {/* Reset Button (only shown if active filter) */}
+            {hasActiveFilter && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex items-center gap-1 text-xs py-1.5 px-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
+                title="Reset semua filter"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -427,16 +461,15 @@ export const SyllabusPanel: React.FC<SyllabusPanelProps> = ({
                     );
                   } else if (pkg.laju !== null) {
                     let badgeColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
-                    let desc = '1 bab / sesi';
+                    let desc = 'standar';
 
-                    if (pkg.laju <= 0.5) {
+                    if (pkg.laju <= 2.0) {
                       badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                      const sesiPerBab = Math.round(1 / pkg.laju);
-                      desc = `~${sesiPerBab} sesi/bab`;
-                    } else if (pkg.laju > 0.5 && pkg.laju <= 1.0) {
+                      desc = 'santai';
+                    } else if (pkg.laju > 2.0 && pkg.laju <= 4.0) {
                       badgeColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
                       desc = 'standar';
-                    } else if (pkg.laju > 1.0 && pkg.laju <= 2.0) {
+                    } else if (pkg.laju > 4.0 && pkg.laju <= 7.0) {
                       badgeColor = 'bg-amber-50 text-amber-800 border-amber-200';
                       desc = 'intensif';
                     } else {
@@ -449,11 +482,11 @@ export const SyllabusPanel: React.FC<SyllabusPanelProps> = ({
                         <div className="flex items-center gap-1.5">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border ${badgeColor}`}>
                             <TrendingUp className="w-3 h-3 shrink-0" />
-                            <span>{pkg.laju.toFixed(2)} bab/sesi</span>
+                            <span>{pkg.laju.toFixed(1)} hal/sesi</span>
                           </span>
                         </div>
                         <span className="text-[10px] text-slate-400 font-normal">
-                          {desc} ({pkg.scopedUnits.length} bab / {pkg.totalMeetings} sesi)
+                          {desc} ({pkg.totalPages} hal / {pkg.totalMeetings} sesi)
                         </span>
                       </div>
                     );
