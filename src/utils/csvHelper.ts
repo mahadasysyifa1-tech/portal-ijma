@@ -1,9 +1,9 @@
-import { DatabaseState, DayOfWeek, ScheduleRule } from '../types';
+import { DatabaseState } from '../types';
 
 /**
  * Escapes a field for CSV format (RFC 4180)
  */
-function escapeCsvValue(val: unknown): string {
+export function escapeCsvValue(val: unknown): string {
   if (val === null || val === undefined) return '';
   const str = String(val);
   if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r') || str.includes('\t')) {
@@ -16,11 +16,11 @@ function escapeCsvValue(val: unknown): string {
  * Export rules starting with id column followed by all rule and entity details
  */
 export function exportRulesToCsv(db: DatabaseState): string {
-  const subjectMap = new Map(db.subjects.map((s) => [s.id, s.name]));
-  const classMap = new Map(db.classes.map((c) => [c.id, c.name]));
-  const teacherMap = new Map(db.teachers.map((t) => [t.id, t.panggilan || t.name]));
-  const roomMap = new Map(db.rooms.map((r) => [r.id, r.name]));
-  const sessionMap = new Map(db.sessions.map((s) => [s.id, s.name]));
+  const subjectMap = new Map((db.subjects || []).map((s) => [s.id, s.name]));
+  const classMap = new Map((db.classes || []).map((c) => [c.id, c.name]));
+  const teacherMap = new Map((db.teachers || []).map((t) => [t.id, t.panggilan || t.name]));
+  const roomMap = new Map((db.rooms || []).map((r) => [r.id, r.name]));
+  const sessionMap = new Map((db.sessions || []).map((s) => [s.id, s.name]));
 
   const headers = [
     'id',
@@ -42,7 +42,7 @@ export function exportRulesToCsv(db: DatabaseState): string {
     'notes'
   ];
 
-  const rows = db.rules.map((rule) => {
+  const rows = (db.rules || []).map((rule) => {
     const rawDays = rule.daysOfWeek || (rule as any).days_of_week || [];
     const daysStr = Array.isArray(rawDays) ? rawDays.join(';') : String(rawDays);
 
@@ -58,20 +58,20 @@ export function exportRulesToCsv(db: DatabaseState): string {
     return [
       escapeCsvValue(rule.id),
       escapeCsvValue(sId),
-      escapeCsvValue(subjectMap.get(sId) || ''),
+      escapeCsvValue(subjectMap.get(sId) || sId),
       escapeCsvValue(cId),
-      escapeCsvValue(classMap.get(cId) || ''),
+      escapeCsvValue(classMap.get(cId) || cId),
       escapeCsvValue(tId),
-      escapeCsvValue(teacherMap.get(tId) || ''),
+      escapeCsvValue(teacherMap.get(tId) || tId),
       escapeCsvValue(rId),
-      escapeCsvValue(roomMap.get(rId) || ''),
+      escapeCsvValue(roomMap.get(rId) || rId),
       escapeCsvValue(sesId),
-      escapeCsvValue(sessionMap.get(sesId) || ''),
-      escapeCsvValue(rule.dayOfWeek || (rule as any).day_of_week || ''),
+      escapeCsvValue(sessionMap.get(sesId) || sesId),
+      escapeCsvValue(rule.dayOfWeek || ''),
       escapeCsvValue(daysStr),
       escapeCsvValue(pidsStr),
-      escapeCsvValue(rule.repeatDetail || (rule as any).repeat_detail || 'Weekly'),
-      escapeCsvValue(rule.active !== false ? 'true' : 'false'),
+      escapeCsvValue(rule.repeatDetail || 'Weekly'),
+      escapeCsvValue(rule.active ? '1' : '0'),
       escapeCsvValue(rule.notes || '')
     ].join(',');
   });
@@ -79,212 +79,156 @@ export function exportRulesToCsv(db: DatabaseState): string {
   return [headers.join(','), ...rows].join('\r\n');
 }
 
-const JS_DOW_TO_DAYOFWEEK: Record<number, DayOfWeek> = {
-  1: 'Monday',
-  2: 'Tuesday',
-  3: 'Wednesday',
-  4: 'Thursday',
-  5: 'Friday',
-  6: 'Saturday'
-};
-
 /**
- * Export chip details ("evtlog") containing 2 columns: date and rulexID
- * Generates resolved chip occurrences for academic dates mapped to their parent rule ID.
+ * Parses a standard CSV string into array of rows
  */
-export function exportEvtlogToCsv(db: DatabaseState): string {
-  interface EvtRow {
-    date: string;
-    rulexID: string;
+export function parseCsvRows(text: string): string[][] {
+  const lines: string[][] = [];
+  let row: string[] = [];
+  let inQuotes = false;
+  let curVal = '';
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i + 1];
+
+    if (inQuotes) {
+      if (c === '"') {
+        if (next === '"') {
+          curVal += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        curVal += c;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === ',') {
+        row.push(curVal.trim());
+        curVal = '';
+      } else if (c === '\r' && next === '\n') {
+        row.push(curVal.trim());
+        lines.push(row);
+        row = [];
+        curVal = '';
+        i++;
+      } else if (c === '\n' || c === '\r') {
+        row.push(curVal.trim());
+        lines.push(row);
+        row = [];
+        curVal = '';
+      } else {
+        curVal += c;
+      }
+    }
   }
 
-  const events: EvtRow[] = [];
-  const periodMap = new Map(db.periods.map((p) => [p.id, p]));
+  if (curVal.length > 0 || row.length > 0) {
+    row.push(curVal.trim());
+    lines.push(row);
+  }
 
-  db.rules.forEach((rule) => {
-    if (rule.active === false) return;
-
-    // Resolve days of week
-    const rawDays = rule.daysOfWeek || (rule as any).days_of_week;
-    const ruleDays: DayOfWeek[] =
-      Array.isArray(rawDays) && rawDays.length > 0
-        ? (rawDays as DayOfWeek[])
-        : [(rule.dayOfWeek || (rule as any).day_of_week || 'Monday') as DayOfWeek];
-
-    // Resolve period IDs
-    let rulePeriodIds: string[] = [];
-    const rawPids = rule.periodIds || (rule as any).period_ids;
-    if (Array.isArray(rawPids) && rawPids.length > 0) {
-      rulePeriodIds = rawPids.map(String);
-    } else if (db.periods.length > 0) {
-      rulePeriodIds = db.periods.map((p) => p.id);
-    }
-
-    rulePeriodIds.forEach((pid) => {
-      const period = periodMap.get(pid);
-      if (!period || !period.startDate || !period.endDate) return;
-
-      const start = new Date(period.startDate);
-      const end = new Date(period.endDate);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return;
-
-      const curr = new Date(start);
-      // Loop over dates
-      while (curr <= end) {
-        const jsDay = curr.getDay(); // 0 = Sun, 1 = Mon, ...
-        const dow = JS_DOW_TO_DAYOFWEEK[jsDay];
-
-        if (dow && ruleDays.includes(dow)) {
-          const year = curr.getFullYear();
-          const month = String(curr.getMonth() + 1).padStart(2, '0');
-          const day = String(curr.getDate()).padStart(2, '0');
-          const dateStr = `${year}-${month}-${day}`;
-
-          events.push({
-            date: dateStr,
-            rulexID: rule.id
-          });
-        }
-        curr.setDate(curr.getDate() + 1);
-      }
-    });
-  });
-
-  // Sort events chronologically, then by rulexID
-  events.sort((a, b) => a.date.localeCompare(b.date) || a.rulexID.localeCompare(b.rulexID));
-
-  // 2 columns: date and rulexID
-  const headers = ['date', 'rulexID'];
-  const rows = events.map((e) => `${escapeCsvValue(e.date)},${escapeCsvValue(e.rulexID)}`);
-
-  return [headers.join(','), ...rows].join('\r\n');
+  return lines.filter((r) => r.length > 0 && r.some((cell) => cell.length > 0));
 }
 
 /**
- * Export teachers table to CSV
+ * Supported tables for Universal Database CSV Hub
  */
-export function exportTeachersToCsv(db: DatabaseState): string {
-  const headers = ['id', 'name', 'panggilan', 'email', 'department', 'maxPeriodsPerWeek', 'color'];
-  const rows = db.teachers.map((t) => [
-    escapeCsvValue(t.id),
-    escapeCsvValue(t.name),
-    escapeCsvValue(t.panggilan || ''),
-    escapeCsvValue(t.email || ''),
-    escapeCsvValue(t.department || ''),
-    escapeCsvValue(t.maxPeriodsPerWeek ?? t.max_periods_per_week ?? 18),
-    escapeCsvValue(t.color || '#0284C7')
-  ].join(','));
-  return [headers.join(','), ...rows].join('\r\n');
+export type UniversalTableKey =
+  | 'students'
+  | 'enrollments'
+  | 'classes'
+  | 'teachers'
+  | 'subjects'
+  | 'rooms'
+  | 'books'
+  | 'sessions'
+  | 'rules'
+  | 'syllabus';
+
+export interface TableExportConfig {
+  key: UniversalTableKey;
+  label: string;
+  description: string;
+  headers: string[];
+  sampleRow: string[];
 }
 
-/**
- * Export classes table to CSV
- */
-export function exportClassesToCsv(db: DatabaseState): string {
-  const roomMap = new Map(db.rooms.map((r) => [r.id, r.name]));
-  const headers = ['id', 'name', 'icon', 'color', 'onlineClassLink', 'defaultRoomId', 'defaultRoomName', 'grade', 'section', 'studentCount'];
-  const rows = db.classes.map((c) => [
-    escapeCsvValue(c.id),
-    escapeCsvValue(c.name),
-    escapeCsvValue(c.icon || 'GraduationCap'),
-    escapeCsvValue(c.color || '#E0E7FF'),
-    escapeCsvValue(c.onlineClassLink || c.online_class_link || ''),
-    escapeCsvValue(c.defaultRoomId || ''),
-    escapeCsvValue(c.defaultRoomId ? roomMap.get(c.defaultRoomId) || '' : ''),
-    escapeCsvValue(c.grade),
-    escapeCsvValue(c.section),
-    escapeCsvValue(c.studentCount)
-  ].join(','));
-  return [headers.join(','), ...rows].join('\r\n');
-}
-
-/**
- * Export subjects table to CSV
- */
-export function exportSubjectsToCsv(db: DatabaseState): string {
-  const teacherMap = new Map(db.teachers.map((t) => [t.id, t.panggilan || t.name]));
-  const roomMap = new Map(db.rooms.map((r) => [r.id, r.name]));
-
-  const headers = [
-    'id',
-    'name',
-    'code',
-    'book',
-    'pdfLink',
-    'shoppingLink',
-    'shoppingLink2',
-    'siteLink',
-    'color',
-    'department',
-    'defaultTeacherId',
-    'defaultTeacherName',
-    'defaultRoomId',
-    'defaultRoomName'
-  ];
-  const rows = db.subjects.map((s) => [
-    escapeCsvValue(s.id),
-    escapeCsvValue(s.name),
-    escapeCsvValue(s.code),
-    escapeCsvValue(s.book || ''),
-    escapeCsvValue(s.pdfLink || s.links?.pdf || ''),
-    escapeCsvValue(s.shoppingLink || s.links?.shopping || ''),
-    escapeCsvValue(s.shoppingLink2 || s.links?.shopping2 || ''),
-    escapeCsvValue(s.siteLink || s.links?.site || ''),
-    escapeCsvValue(s.color || '#3B82F6'),
-    escapeCsvValue(s.department || ''),
-    escapeCsvValue(s.defaultTeacherId || ''),
-    escapeCsvValue(s.defaultTeacherId ? teacherMap.get(s.defaultTeacherId) || '' : ''),
-    escapeCsvValue(s.defaultRoomId || ''),
-    escapeCsvValue(s.defaultRoomId ? roomMap.get(s.defaultRoomId) || '' : '')
-  ].join(','));
-  return [headers.join(','), ...rows].join('\r\n');
-}
-
-/**
- * Export rooms table to CSV
- */
-export function exportRoomsToCsv(db: DatabaseState): string {
-  const headers = ['id', 'name', 'building', 'capacity', 'type'];
-  const rows = db.rooms.map((r) => [
-    escapeCsvValue(r.id),
-    escapeCsvValue(r.name),
-    escapeCsvValue(r.building || ''),
-    escapeCsvValue(r.capacity),
-    escapeCsvValue(r.type || '')
-  ].join(','));
-  return [headers.join(','), ...rows].join('\r\n');
-}
-
-/**
- * Export sessions table to CSV
- */
-export function exportSessionsToCsv(db: DatabaseState): string {
-  const headers = ['id', 'name', 'order', 'startTime', 'endTime'];
-  const rows = db.sessions.map((s) => [
-    escapeCsvValue(s.id),
-    escapeCsvValue(s.name),
-    escapeCsvValue(s.order),
-    escapeCsvValue(s.startTime),
-    escapeCsvValue(s.endTime)
-  ].join(','));
-  return [headers.join(','), ...rows].join('\r\n');
-}
-
-/**
- * Export periods table to CSV
- */
-export function exportPeriodsToCsv(db: DatabaseState): string {
-  const headers = ['id', 'name', 'periodNumber', 'startDate', 'endDate', 'description'];
-  const rows = db.periods.map((p) => [
-    escapeCsvValue(p.id),
-    escapeCsvValue(p.name),
-    escapeCsvValue(p.periodNumber),
-    escapeCsvValue(p.startDate),
-    escapeCsvValue(p.endDate),
-    escapeCsvValue(p.description || '')
-  ].join(','));
-  return [headers.join(','), ...rows].join('\r\n');
-}
+export const UNIVERSAL_TABLE_CONFIGS: Record<UniversalTableKey, TableExportConfig> = {
+  students: {
+    key: 'students',
+    label: 'Santri & Siswa',
+    description: 'Data induk santri madrasah (NISN, Nama, Gender, Telepon).',
+    headers: ['id', 'nisn', 'name', 'gender', 'phone'],
+    sampleRow: ['std-101', '0089123001', 'Ahmad Fauzi', 'L', '081234567890'],
+  },
+  enrollments: {
+    key: 'enrollments',
+    label: 'Penugasan Rombel (Enrollment)',
+    description: 'Relasi keanggotaan santri di rombel kelas & wali kelas.',
+    headers: ['class_id', 'student_id', 'academic_year', 'active'],
+    sampleRow: ['cls-10a', 'std-101', '2025/2026', '1'],
+  },
+  classes: {
+    key: 'classes',
+    label: 'Rombongan Belajar (Kelas)',
+    description: 'Daftar kelas madrasah, tingkatan, warna, dan kapasitas.',
+    headers: ['id', 'name', 'grade', 'section', 'color', 'defaultRoomId'],
+    sampleRow: ['cls-10a', 'Kelas 10-A', '10', 'REGULER', '#E0F2FE', 'rm-101'],
+  },
+  teachers: {
+    key: 'teachers',
+    label: 'Pengajar & Ustadz',
+    description: 'Daftar guru/ustadz pengampu dan bidang ilmu.',
+    headers: ['id', 'name', 'panggilan', 'email', 'department', 'color', 'maxPeriodsPerWeek'],
+    sampleRow: ['tch-101', 'Ustadz Ridwan', 'Ust. Ridwan', 'ridwan@pesantren.id', 'Bahasa Arab', '#0284C7', '18'],
+  },
+  subjects: {
+    key: 'subjects',
+    label: 'Mata Pelajaran',
+    description: 'Kurikulum mata pelajaran dan kode beban.',
+    headers: ['id', 'name', 'code', 'category', 'color', 'weeklyPeriods'],
+    sampleRow: ['sub-arb', 'Bahasa Arab', 'ARB', 'Bahasa', '#3B82F6', '4'],
+  },
+  rooms: {
+    key: 'rooms',
+    label: 'Ruangan & Gedung',
+    description: 'Ruang kelas, laboratorium, dan kapasitas.',
+    headers: ['id', 'name', 'building', 'capacity', 'type'],
+    sampleRow: ['rm-101', 'Ruang Kelas 1', 'Gedung Utama', '30', 'Standard'],
+  },
+  books: {
+    key: 'books',
+    label: 'Kitab & Buku Acuan',
+    description: 'Pustaka rujukan kitab kuning dan buku ajar santri.',
+    headers: ['id', 'title', 'author', 'publisher', 'volumeCount', 'displayCode'],
+    sampleRow: ['bk-101', 'Al-Ajurrumiyyah', 'Ibnu Ajurrum', 'Dar Ihya', '1', 'BK-AJR'],
+  },
+  sessions: {
+    key: 'sessions',
+    label: 'Sesi Waktu Pembelajaran',
+    description: 'Jam pelajaran (start time, end time, urutan sesi).',
+    headers: ['id', 'name', 'start_time', 'end_time', 'sort_order'],
+    sampleRow: ['ses-1', 'Sesi 1 (Pagi)', '07:30', '08:50', '1'],
+  },
+  rules: {
+    key: 'rules',
+    label: 'Aturan Jadwal (Rules)',
+    description: 'Penugasan guru mengajar kelas di sesi & hari tertentu.',
+    headers: ['id', 'subjectId', 'classId', 'teacherId', 'roomId', 'sessionId', 'daysOfWeek', 'active'],
+    sampleRow: ['rul-101', 'sub-arb', 'cls-10a', 'tch-101', 'rm-101', 'ses-1', 'Monday;Wednesday', '1'],
+  },
+  syllabus: {
+    key: 'syllabus',
+    label: 'Silabus Materi Pelajaran',
+    description: 'Rincian bab, pokok bahasan, dan rentang halaman buku.',
+    headers: ['id', 'subjectId', 'bookId', 'title', 'chapter', 'pageStart', 'pageEnd'],
+    sampleRow: ['syl-101', 'sub-arb', 'bk-101', 'Bab Kalam', '1', '1', '15'],
+  },
+};
 
 /**
  * Triggers a browser download of CSV text

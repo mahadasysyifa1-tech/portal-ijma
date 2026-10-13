@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { DatabaseState, ScheduleRule, ScheduleConflict, DayOfWeek } from './types';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { DatabaseState, ScheduleRule, ScheduleConflict, DayOfWeek, SaveStatus } from './types';
 import { initialData } from './data/initialData';
 import { detectConflicts } from './utils/scheduleEngine';
 import { normalizeDatabaseState, normalizeRule } from './utils/normalize';
-import { Header, ActiveTabType } from './components/Header';
+import { Header, ActiveTabType, DatabaseSubTab } from './components/Header';
 import { UnifiedStudio } from './components/UnifiedStudio';
+import { ScheduleViewMode } from './components/CalendarView';
 import { SubjectsDirectory } from './components/directory/SubjectsDirectory';
+import { BooksDirectory } from './components/directory/BooksDirectory';
 import { TeachersDirectory } from './components/directory/TeachersDirectory';
 import { ConflictCenter } from './components/ConflictCenter';
 import { EntityManager } from './components/EntityManager';
@@ -15,6 +17,8 @@ import { HomeTab } from './components/HomeTab';
 import { JournalView, ViewerRole } from './components/JournalView';
 import { ExportImportView } from './components/ExportImportView';
 import { KaldikView } from './components/kaldik/KaldikView';
+import { PresensiView } from './components/attendance/PresensiView';
+import { EnrollmentView } from './components/attendance/EnrollmentView';
 import { RuleManagerView } from './components/ruleManager/RuleManagerView';
 import { parseUrlRoute, updateUrlRoute } from './utils/routing';
 
@@ -25,7 +29,7 @@ export default function App() {
     if (initialRoute.tab) return initialRoute.tab;
     try {
       const savedTab = localStorage.getItem('ijma_last_tab') as ActiveTabType;
-      if (savedTab && ['home', 'studio'].includes(savedTab)) {
+      if (savedTab && ['home', 'studio', 'kaldik'].includes(savedTab)) {
         return savedTab;
       }
     } catch {}
@@ -53,7 +57,12 @@ export default function App() {
   });
 
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [databaseSubTab, setDatabaseSubTab] = useState<DatabaseSubTab>('classes');
   const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: 'idle' });
+  const [cloudLoad, setCloudLoad] = useState<'loading' | 'ok' | 'failed'>('loading');
+  const editVersion = useRef(0);
   const [showRules, setShowRules] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<ScheduleRule | null>(null);
@@ -84,6 +93,50 @@ export default function App() {
     return '';
   });
 
+  // Unified Studio schedule view state (persisted across rule edits, navigation, and reloads)
+  const [studioViewMode, setStudioViewMode] = useState<ScheduleViewMode>(() => {
+    if (initialRoute.view) return initialRoute.view;
+    try {
+      const saved = localStorage.getItem('ijma_studio_view_mode') as ScheduleViewMode;
+      if (saved && Object.values(ScheduleViewMode).includes(saved)) {
+        return saved;
+      }
+      const savedRole = localStorage.getItem('ijma_viewer_role');
+      if (savedRole === 'teacher') return ScheduleViewMode.TEACHER_WEEK;
+    } catch {}
+    return initialRoute.role === 'teacher' ? ScheduleViewMode.TEACHER_WEEK : ScheduleViewMode.STUDENT_WEEK;
+  });
+
+  const [studioSelectedClassId, setStudioSelectedClassId] = useState<string>(() => {
+    if (initialRoute.role === 'student' && initialRoute.id) return initialRoute.id;
+    try {
+      const saved = localStorage.getItem('ijma_studio_selected_class');
+      if (saved) return saved;
+      const savedId = localStorage.getItem('ijma_viewer_id');
+      if (savedId) return savedId;
+    } catch {}
+    return '';
+  });
+
+  const [studioSelectedTeacherId, setStudioSelectedTeacherId] = useState<string>(() => {
+    if (initialRoute.role === 'teacher' && initialRoute.id) return initialRoute.id;
+    try {
+      const saved = localStorage.getItem('ijma_studio_selected_teacher');
+      if (saved) return saved;
+      const savedId = localStorage.getItem('ijma_viewer_id');
+      if (savedId) return savedId;
+    } catch {}
+    return '';
+  });
+
+  const [studioSelectedPeriodId, setStudioSelectedPeriodId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('ijma_studio_selected_period');
+      if (saved) return saved;
+    } catch {}
+    return 'all';
+  });
+
   // Deep linking to Journal view
   const [journalNavParams, setJournalNavParams] = useState<{
     subjectId?: string;
@@ -91,12 +144,31 @@ export default function App() {
     date?: string;
   } | null>(null);
 
+  // Selected book for Books Directory view
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+  // Selected subject for Subjects Directory view
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+
+  // Deep linking to Presensi view
+  const [attendanceNavParams, setAttendanceNavParams] = useState<{
+    date?: string;
+    classId?: string;
+    sessionId?: string;
+    subjectId?: string;
+  }>({});
+
   const handleSetViewerRole = (role: ViewerRole) => {
     setViewerRole(role);
   };
 
   const handleSetViewerId = (id: string) => {
     setViewerId(id);
+  };
+
+  const handleNavigateToAttendance = (date: string, classId: string, sessionId: string, subjectId?: string) => {
+    setAttendanceNavParams({ date, classId, sessionId, subjectId });
+    setActiveTab('presensi');
+    updateUrlRoute('presensi', viewerRole, viewerId, 'push');
   };
 
   const handleNavigateToJournal = (subjectId?: string, classId?: string, date?: string) => {
@@ -109,11 +181,29 @@ export default function App() {
     updateUrlRoute('journal', viewerRole, viewerId, 'push');
   };
 
+  const handleNavigateToBooks = (bookId?: string) => {
+    if (bookId) {
+      setSelectedBookId(bookId);
+    }
+    setActiveTab('books');
+    updateUrlRoute('books', viewerRole, viewerId, 'push');
+  };
+
+  const handleNavigateToSubjects = (subjectId?: string) => {
+    if (subjectId) {
+      setSelectedSubjectId(subjectId);
+    }
+    setActiveTab('subjects');
+    updateUrlRoute('subjects', viewerRole, viewerId, 'push');
+  };
+
   const handleTabChange = (tab: ActiveTabType) => {
     // Navigating between tabs clears all 1-time deep link tokens
     setJournalNavParams(null);
+    setSelectedBookId(null);
+    setSelectedSubjectId(null);
     setActiveTab(tab);
-    updateUrlRoute(tab, viewerRole, viewerId, 'push');
+    updateUrlRoute(tab, viewerRole, viewerId, 'push', tab === 'studio' ? studioViewMode : undefined);
   };
 
   // Sync token in localStorage & URL
@@ -126,8 +216,8 @@ export default function App() {
       }
     } catch {}
 
-    updateUrlRoute(activeTab, viewerRole, viewerId, 'replace');
-  }, [activeTab, viewerRole, viewerId]);
+    updateUrlRoute(activeTab, viewerRole, viewerId, 'replace', activeTab === 'studio' ? studioViewMode : undefined);
+  }, [activeTab, viewerRole, viewerId, studioViewMode]);
 
   // Handle browser back/forward buttons (popstate)
   useEffect(() => {
@@ -136,6 +226,7 @@ export default function App() {
       if (route.tab) setActiveTab(route.tab);
       if (route.role) setViewerRole(route.role);
       if (route.id) setViewerId(route.id);
+      if (route.view) setStudioViewMode(route.view);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -145,10 +236,11 @@ export default function App() {
   useEffect(() => {
     fetch('/api/database')
       .then((res) => {
-        if (!res.ok) throw new Error('API failed');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then((data: any) => {
+        setCloudLoad('ok');
         if (data && data.subjects && data.subjects.length > 0) {
           const normalized = normalizeDatabaseState(data);
           setDb(normalized);
@@ -158,7 +250,8 @@ export default function App() {
         }
       })
       .catch((err) => {
-        console.warn('Using local state database (backend pending):', err);
+        console.warn('Failed to load from Turso; showing local cache only:', err);
+        setCloudLoad('failed');
       });
   }, []);
 
@@ -185,22 +278,92 @@ export default function App() {
   const saveDatabase = useCallback((newDb: DatabaseState) => {
     const normalized = normalizeDatabaseState(newDb);
     setDb(normalized);
+    editVersion.current += 1;
+    setIsDirty(true);
+    setSaveStatus({ kind: 'idle' });
     try {
       localStorage.setItem('school_schedule_db', JSON.stringify(normalized));
     } catch (e) {
       console.warn('Local storage error', e);
     }
-
-    setIsSaving(true);
-    fetch('/api/database/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(normalized)
-    })
-      .then((res) => res.json())
-      .catch((err) => console.warn('Sync save to server error:', err))
-      .finally(() => setIsSaving(false));
   }, []);
+
+  // SAVE and WARNING
+  // Actual save function
+    const countDb = (d: DatabaseState): Record<string, number> => ({
+    subjects: d.subjects.length,
+    classes: d.classes.length,
+    teachers: d.teachers.length,
+    rooms: d.rooms.length,
+    sessions: d.sessions.length,
+    periods: d.periods.length,
+    rules: d.rules.length,
+    kaldikEvents: (d.kaldikEvents || []).length,
+    books: (d.books || []).length,
+    syllabusUnits: (d.syllabusUnits || []).length,
+    syllabusScopes: (d.syllabusScopes || []).length
+  });
+
+  const handleSaveToCloud = async () => {
+    if (!isAdmin) {
+      setIsAdminModalOpen(true);
+      return;
+    }
+    if (cloudLoad !== 'ok') {
+      setSaveStatus({
+        kind: 'error',
+        message: 'Data awal belum berhasil dimuat dari Turso. Muat ulang halaman dulu agar data cloud tidak tertimpa cache lama.'
+      });
+      return;
+    }
+
+    const snapshot = normalizeDatabaseState(db);
+    const versionAtSave = editVersion.current;
+    setIsSaving(true);
+    setSaveStatus({ kind: 'saving' });
+
+    try {
+      const res = await fetch('/api/database/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(snapshot)
+      });
+      const body: any = await res.json().catch(() => ({}));
+      if (!res.ok || !body.success) {
+        throw new Error(body?.details || body?.error || `HTTP ${res.status}`);
+      }
+
+      const expected = countDb(snapshot);
+      const actual: Record<string, number> = body.counts || {};
+      const mismatched = Object.keys(expected).filter((k) => expected[k] !== actual[k]);
+      if (mismatched.length > 0) {
+        throw new Error(
+          'Data di Turso tidak sama dengan yang dikirim: ' +
+            mismatched.map((k) => `${k} (dikirim ${expected[k]}, tersimpan ${actual[k] ?? '?'})`).join(', ')
+        );
+      }
+
+      // Only clear "dirty" if nothing was edited while the save was in flight
+      if (editVersion.current === versionAtSave) setIsDirty(false);
+      setSaveStatus({ kind: 'ok', at: body.savedAt, counts: actual });
+    } catch (err: any) {
+      console.error('Save to Turso failed:', err);
+      setSaveStatus({ kind: 'error', message: err?.message || 'Kesalahan tidak diketahui' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Warn before closing the tab with unsaved changes
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
 
   // Conflicts calculation
   const conflicts = useMemo(() => {
@@ -234,7 +397,11 @@ export default function App() {
     }
     setEditingRule(null);
     setSlotPrefill(prefillSubjectId ? { subjectId: prefillSubjectId } : undefined);
-    setIsModalOpen(true);
+    if (activeTab === 'studio') {
+      setShowRules(true);
+    } else {
+      setIsModalOpen(true);
+    }
   };
 
   const handleOpenNewRuleForSlot = (
@@ -249,7 +416,11 @@ export default function App() {
     }
     setEditingRule(null);
     setSlotPrefill({ day, periodId, sessionId, classId });
-    setIsModalOpen(true);
+    if (activeTab === 'studio') {
+      setShowRules(true);
+    } else {
+      setIsModalOpen(true);
+    }
   };
 
   const handleEditRule = (rule: ScheduleRule) => {
@@ -259,7 +430,11 @@ export default function App() {
     }
     setEditingRule(rule);
     setSlotPrefill(undefined);
-    setIsModalOpen(true);
+    if (activeTab === 'studio') {
+      setShowRules(true);
+    } else {
+      setIsModalOpen(true);
+    }
   };
 
   const handleAddRule = () => {
@@ -269,7 +444,11 @@ export default function App() {
     }
     setEditingRule(null);
     setSlotPrefill(undefined);
-    setIsModalOpen(true);
+    if (activeTab === 'studio') {
+      setShowRules(true);
+    } else {
+      setIsModalOpen(true);
+    }
   };
 
   const handleDuplicateRule = (rule: ScheduleRule) => {
@@ -302,6 +481,10 @@ export default function App() {
       ...db,
       rules: db.rules.filter((r) => r.id !== ruleId)
     });
+    if (editingRule?.id === ruleId) {
+      setEditingRule(null);
+      setSlotPrefill(undefined);
+    }
   };
 
   const handleToggleRuleActive = (ruleId: string, active: boolean) => {
@@ -340,6 +523,8 @@ export default function App() {
       rules: updatedRules
     });
     setIsModalOpen(false);
+    // Keep updated rule in editingRule so inline form in studio stays synced
+    setEditingRule(normalized);
   };
 
   // Reset demo template
@@ -393,14 +578,35 @@ export default function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={handleTabChange}
+        onSelectDatabaseSubTab={(subTab) => {
+          setDatabaseSubTab(subTab);
+          handleTabChange('database');
+        }}
         conflicts={conflicts}
         showRules={showRules}
         onToggleRules={setShowRules}
         isSaving={isSaving}
+        isDirty={isDirty}
+        onSave={handleSaveToCloud}
         isAdmin={isAdmin}
         onOpenAdminLogin={handleOpenAdminLogin}
         onAdminLogout={handleAdminLogout}
       />
+      {cloudLoad === 'failed' && (
+        <div className="bg-amber-500 text-white text-xs font-semibold px-4 py-2 text-center">
+          ⚠️ Gagal memuat data dari Turso. Yang tampil adalah cache lokal browser. Penyimpanan dinonaktifkan sampai halaman dimuat ulang dengan sukses.
+        </div>
+      )}
+      {saveStatus.kind === 'error' && (
+        <div className="bg-rose-600 text-white text-xs font-semibold px-4 py-2 text-center">
+          ❌ Gagal menyimpan: {saveStatus.message}
+        </div>
+      )}
+      {saveStatus.kind === 'ok' && (
+        <div className="bg-emerald-600 text-white text-xs font-semibold px-4 py-2 text-center">
+          ✅ Tersimpan &amp; terverifikasi di Turso pukul {new Date(saveStatus.at).toLocaleTimeString('id-ID')} — {saveStatus.counts.rules} aturan, {saveStatus.counts.kaldikEvents} event, {saveStatus.counts.syllabusUnits} materi, {saveStatus.counts.syllabusScopes} scope
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -414,6 +620,36 @@ export default function App() {
             setViewerId={handleSetViewerId}
             onNavigateToJournal={handleNavigateToJournal}
             onNavigateToSchedule={() => handleTabChange('studio')}
+            onNavigateToBooks={handleNavigateToBooks}
+            onNavigateToAttendance={handleNavigateToAttendance}
+          />
+        )}
+
+        {/* Presensi Tab (Kalender & Absensi Terpadu) */}
+        {activeTab === 'presensi' && (
+          <PresensiView
+            db={db}
+            initialDate={attendanceNavParams.date}
+            initialClassId={attendanceNavParams.classId}
+            initialSessionId={attendanceNavParams.sessionId}
+            onClearDeepLink={() => setAttendanceNavParams({})}
+            onNavigateToEnrollment={() => handleTabChange('enrollment')}
+            isAdmin={isAdmin}
+            onOpenAdminLogin={handleOpenAdminLogin}
+          />
+        )}
+
+        {/* Enrollment & Roster Management Tab */}
+        {activeTab === 'enrollment' && (
+          <EnrollmentView
+            db={db}
+            isAdmin={isAdmin}
+            onOpenAdminLogin={handleOpenAdminLogin}
+            onBackToPresensi={() => handleTabChange('presensi')}
+            onUpdateDb={(updater) => {
+              const updated = typeof updater === 'function' ? updater(db) : updater;
+              saveDatabase(updated);
+            }}
           />
         )}
 
@@ -427,6 +663,8 @@ export default function App() {
             }}
             isAdmin={isAdmin}
             onOpenAdminLogin={handleOpenAdminLogin}
+            onNavigateToJournal={handleNavigateToJournal}
+            onNavigateToBooks={handleNavigateToBooks}
           />
         )}
 
@@ -449,6 +687,7 @@ export default function App() {
             onClearInitialDeepLink={() => setJournalNavParams(null)}
             onOpenAdminLogin={handleOpenAdminLogin}
             onNavigateToRuleManager={() => handleTabChange('rule-manager')}
+            onNavigateToBooks={handleNavigateToBooks}
           />
         )}
 
@@ -463,6 +702,9 @@ export default function App() {
             conflicts={conflicts}
             showRules={showRules}
             onToggleRules={setShowRules}
+            editingRule={editingRule}
+            prefill={slotPrefill}
+            onSaveRule={handleSaveRule}
             onOpenNewRule={handleOpenNewRule}
             onOpenNewRuleForSlot={handleOpenNewRuleForSlot}
             onEditRule={handleEditRule}
@@ -479,6 +721,39 @@ export default function App() {
               setViewerRole(role);
               setViewerId(id);
             }}
+            activeViewMode={studioViewMode}
+            onViewModeChange={(mode) => {
+              setStudioViewMode(mode);
+              try {
+                localStorage.setItem('ijma_studio_view_mode', mode);
+              } catch {}
+              updateUrlRoute(activeTab, viewerRole, viewerId, 'replace', mode);
+            }}
+            selectedClassId={studioSelectedClassId}
+            onSelectClassId={(id) => {
+              setStudioSelectedClassId(id);
+              try {
+                localStorage.setItem('ijma_studio_selected_class', id);
+              } catch {}
+              setViewerRole('student');
+              setViewerId(id);
+            }}
+            selectedTeacherId={studioSelectedTeacherId}
+            onSelectTeacherId={(id) => {
+              setStudioSelectedTeacherId(id);
+              try {
+                localStorage.setItem('ijma_studio_selected_teacher', id);
+              } catch {}
+              setViewerRole('teacher');
+              setViewerId(id);
+            }}
+            selectedPeriodId={studioSelectedPeriodId}
+            onSelectPeriodId={(id) => {
+              setStudioSelectedPeriodId(id);
+              try {
+                localStorage.setItem('ijma_studio_selected_period', id);
+              } catch {}
+            }}
           />
         )}
 
@@ -486,11 +761,28 @@ export default function App() {
         {activeTab === 'subjects' && (
           <SubjectsDirectory
             db={db}
+            initialSelectedSubjectId={selectedSubjectId}
             onBackToSchedule={() => handleTabChange('studio')}
             onSelectSubject={(subjectId) => {
               // Do not force carry-over any classId so user can choose or auto-resolve properly
               handleNavigateToJournal(subjectId, '', '');
             }}
+            onSelectBook={(bookId) => {
+              handleNavigateToBooks(bookId);
+            }}
+          />
+        )}
+
+        {/* Menu Tab: Buku & Kitab Acuan */}
+        {activeTab === 'books' && (
+          <BooksDirectory
+            db={db}
+            initialSelectedBookId={selectedBookId}
+            onBackToSchedule={() => handleTabChange('studio')}
+            onSelectSubject={(subjectId) => {
+              handleNavigateToSubjects(subjectId);
+            }}
+            onNavigateToJournal={handleNavigateToJournal}
           />
         )}
 
@@ -500,6 +792,12 @@ export default function App() {
             db={db}
             onBackToSchedule={() => handleTabChange('studio')}
             onSelectTeacherSchedule={(teacherId) => {
+              setStudioViewMode(ScheduleViewMode.TEACHER_WEEK);
+              setStudioSelectedTeacherId(teacherId);
+              try {
+                localStorage.setItem('ijma_studio_view_mode', ScheduleViewMode.TEACHER_WEEK);
+                localStorage.setItem('ijma_studio_selected_teacher', teacherId);
+              } catch {}
               setViewerRole('teacher');
               setViewerId(teacherId);
               handleTabChange('studio');
@@ -550,6 +848,8 @@ export default function App() {
         {activeTab === 'database' && (
           <EntityManager
             db={db}
+            initialSubTab={databaseSubTab}
+            onSelectSubTab={setDatabaseSubTab}
             onUpdateDb={(updater) => {
               if (!isAdmin) {
                 setIsAdminModalOpen(true);
@@ -571,6 +871,9 @@ export default function App() {
             onDeleteRule={handleDeleteRule}
             onNavigateToExportImport={() => handleTabChange('export-import')}
             onNavigateToRuleManager={() => handleTabChange('rule-manager')}
+            onNavigateToSchedule={() => handleTabChange('studio')}
+            onNavigateToKaldik={() => handleTabChange('kaldik')}
+            onNavigateToJournal={() => handleTabChange('journal')}
             isAdmin={isAdmin}
             onOpenAdminLogin={handleOpenAdminLogin}
           />
@@ -596,9 +899,9 @@ export default function App() {
         )}
       </main>
 
-      {/* Rule Creator / Editor Modal with dynamic Exceptions */}
+      {/* Rule Creator / Editor Modal with dynamic Exceptions (used outside studio) */}
       <RuleModal
-        isOpen={isModalOpen}
+        isOpen={isModalOpen && activeTab !== 'studio'}
         onClose={() => {
           setIsModalOpen(false);
           setEditingRule(null);

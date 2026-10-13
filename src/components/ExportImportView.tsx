@@ -1,40 +1,27 @@
 import React, { useState, useRef } from 'react';
-import {
-  DatabaseState,
-  SyllabusUnit
-} from '../types';
+import { DatabaseState, SyllabusUnit } from '../types';
 import {
   Database,
   Download,
   Upload,
-  FileSpreadsheet,
-  FileText,
-  Users,
-  GraduationCap,
-  BookOpen,
-  DoorOpen,
-  Clock,
-  Sliders,
   ArrowLeft,
   CheckCircle2,
   AlertTriangle,
   FileCheck,
   FolderDown,
-  Layers,
-  Sparkles
+  BookOpen
 } from 'lucide-react';
 import {
-  exportRulesToCsv,
-  exportEvtlogToCsv,
-  exportTeachersToCsv,
-  exportClassesToCsv,
-  exportSubjectsToCsv,
-  exportRoomsToCsv,
-  exportSessionsToCsv,
-  exportPeriodsToCsv,
-  downloadCsvFile
+  exportSyllabusToCsv,
+  getSampleSyllabusCsv
+} from '../utils/syllabusImporter';
+import {
+  downloadCsvFile,
+  escapeCsvValue,
+  parseCsvRows,
+  UNIVERSAL_TABLE_CONFIGS,
+  UniversalTableKey
 } from '../utils/csvHelper';
-import { exportSyllabusToCsv } from '../utils/syllabusImporter';
 import { SyllabusImporterModal } from './syllabus/SyllabusImporterModal';
 
 interface ExportImportViewProps {
@@ -51,13 +38,20 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
   onExportJson,
   onImportJson,
   onUpdateDb,
-  onBackToDatabase,
-  onNavigateToSchedule
+  onBackToDatabase
 }) => {
   const [isSyllabusImporterOpen, setIsSyllabusImporterOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleDownloadSyllabusTemplate = () => {
+    const sampleBooks = (db.books && db.books.length > 0) ? db.books : undefined;
+    const firstBook = sampleBooks ? sampleBooks[0] : null;
+    const defaultCode = firstBook ? (firstBook.displayCode || firstBook.display_code || firstBook.id) : 'BK-ARB';
+    const csvContent = sampleBooks ? getSampleSyllabusCsv(sampleBooks) : getSampleSyllabusCsv(defaultCode);
+    downloadCsvFile('template_silabus.csv', csvContent);
+  };
 
   const handleImportSyllabusUnits = (newUnits: SyllabusUnit[], mode: 'replace' | 'append') => {
     onUpdateDb((prev) => {
@@ -115,7 +109,6 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
     if (file) {
       processJsonFile(file);
     }
-    // reset input value so re-selecting same file triggers event
     if (e.target) {
       e.target.value = '';
     }
@@ -154,14 +147,14 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                  Pusat Ekspor &amp; Impor Basis Data
+                  Pusat Cadangan JSON &amp; Impor Silabus
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  Data Backup &amp; Interoperabilitas
+                  Data Backup Asli
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-                Kelola pencadangan penuh sistem (JSON) untuk migrasi atau cadangan darurat, pulihkan berkas basis data, dan unduh data tabular format CSV untuk laporan akademik, silabus, dan jadwal.
+                Format penyimpanan asli aplikasi adalah JSON. Kelola pencadangan penuh sistem (JSON) untuk migrasi atau cadangan darurat, pulihkan berkas basis data, dan impor/ekspor silabus materi dalam format CSV.
               </p>
             </div>
           </div>
@@ -174,14 +167,14 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
                 className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Basis Data Master</span>
+                <span>Kembali ke Basis Data</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Database Inventory Snapshot */}
-        <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-center">
+        <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-center">
           <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70">
             <span className="text-[10px] uppercase font-bold text-slate-400 block">Pelajaran</span>
             <span className="text-sm font-bold text-slate-900">{db.subjects.length}</span>
@@ -199,15 +192,11 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
             <span className="text-sm font-bold text-slate-900">{db.rooms.length}</span>
           </div>
           <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Sesi Jam</span>
-            <span className="text-sm font-bold text-slate-900">{db.sessions.length}</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Kitab / Buku</span>
+            <span className="text-sm font-bold text-slate-900">{(db.books || []).length}</span>
           </div>
           <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Periode</span>
-            <span className="text-sm font-bold text-slate-900">{db.periods.length}</span>
-          </div>
-          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Aturan Jadwal</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Jadwal Aturan</span>
             <span className="text-sm font-bold text-indigo-700">{db.rules.length}</span>
           </div>
           <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70">
@@ -217,7 +206,7 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
         </div>
       </div>
 
-      {/* Notification banner if import was executed */}
+      {/* Notification banner */}
       {importStatus && (
         <div
           className={`p-4 rounded-xl border flex items-center justify-between gap-3 ${
@@ -244,7 +233,7 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
         </div>
       )}
 
-      {/* Grid: JSON Full System Backup & Restore */}
+      {/* Grid: Native JSON Full System Backup & Restore */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Card 1: Ekspor Cadangan Sistem (JSON) */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-4 flex flex-col justify-between">
@@ -258,7 +247,7 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
                   Cadangan Penuh Basis Data (Ekspor JSON)
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Menyimpan keseluruhan entitas &amp; konfigurasi dalam satu berkas terstruktur.
+                  Menyimpan keseluruhan entitas &amp; konfigurasi dalam satu berkas JSON terstruktur asli.
                 </p>
               </div>
             </div>
@@ -270,6 +259,7 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
               </div>
               <ul className="list-disc list-inside text-[11px] space-y-0.5 pl-1 text-slate-600">
                 <li>Seluruh Mata Pelajaran ({db.subjects.length}) &amp; Guru Pengampu ({db.teachers.length})</li>
+                <li>Pustaka Kitab &amp; Buku Ajar ({(db.books || []).length} buku/kitab)</li>
                 <li>Rombel Kelas ({db.classes.length}), Ruangan ({db.rooms.length}), dan Sesi ({db.sessions.length})</li>
                 <li>Periode Kalender Akademik ({db.periods.length})</li>
                 <li>Aturan Jadwal Utama &amp; Pengecualian Tanggal ({db.rules.length} aturan)</li>
@@ -303,7 +293,7 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
                   Pemulihan Basis Data (Impor JSON)
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Pulihkan seluruh tabel basis data dari berkas cadangan JSON yang telah disimpan.
+                  Pulihkan seluruh tabel basis data dari berkas cadangan JSON portal IJMA.
                 </p>
               </div>
             </div>
@@ -340,296 +330,20 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
           <div className="text-[11px] text-amber-900 bg-amber-50/80 p-2.5 rounded-xl border border-amber-200/80 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <span>
-              <strong>Perhatian:</strong> Mengimpor berkas JSON akan menggantikan isi database aktif saat ini. Pastikan Anda telah mengunduh cadangan terbaru sebelum melakukan pemulihan.
+              <strong>Perhatian:</strong> Mengimpor berkas JSON akan memperbarui basis data aktif saat ini.
             </span>
           </div>
         </div>
       </div>
 
-      {/* Section 2: Ekspor CSV per Tabel Basis Data */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-4">
-        <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-              <h3 className="text-sm font-bold text-slate-900">
-                Ekspor Spreadsheet CSV per Tabel Basis Data
-              </h3>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Unduh data tabular individu dalam format CSV standar yang siap dibuka di Microsoft Excel, Google Sheets, atau aplikasi pengolah angka lainnya.
-            </p>
-          </div>
-          <span className="text-[11px] font-mono text-slate-400">
-            Tanggal ekspor: {todayStr}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
-          {/* Guru CSV */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-emerald-50/30 hover:border-emerald-200 transition-all flex items-center justify-between gap-3 group">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-2 rounded-lg bg-teal-50 text-teal-700 group-hover:bg-teal-100 transition-colors">
-                <Users className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-bold text-slate-900 truncate">Data Guru (Asatidzah)</h4>
-                <p className="text-[10px] text-slate-500 truncate">{db.teachers.length} akun terdaftar</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const csv = exportTeachersToCsv(db);
-                downloadCsvFile(`teachers_${todayStr}.csv`, csv);
-              }}
-              className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-emerald-600 hover:text-white border border-slate-200 hover:border-emerald-600 rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
-              title="Unduh data Guru ke format CSV"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>CSV</span>
-            </button>
-          </div>
-
-          {/* Kelas CSV */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-emerald-50/30 hover:border-emerald-200 transition-all flex items-center justify-between gap-3 group">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-2 rounded-lg bg-blue-50 text-blue-700 group-hover:bg-blue-100 transition-colors">
-                <GraduationCap className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-bold text-slate-900 truncate">Data Kelas (Rombel)</h4>
-                <p className="text-[10px] text-slate-500 truncate">{db.classes.length} rombel kelas</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const csv = exportClassesToCsv(db);
-                downloadCsvFile(`classes_${todayStr}.csv`, csv);
-              }}
-              className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-emerald-600 hover:text-white border border-slate-200 hover:border-emerald-600 rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
-              title="Unduh data Kelas ke format CSV"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>CSV</span>
-            </button>
-          </div>
-
-          {/* Pelajaran CSV */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-emerald-50/30 hover:border-emerald-200 transition-all flex items-center justify-between gap-3 group">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-2 rounded-lg bg-indigo-50 text-indigo-700 group-hover:bg-indigo-100 transition-colors">
-                <BookOpen className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-bold text-slate-900 truncate">Data Pelajaran (Mapel)</h4>
-                <p className="text-[10px] text-slate-500 truncate">{db.subjects.length} mata pelajaran</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const csv = exportSubjectsToCsv(db);
-                downloadCsvFile(`subjects_${todayStr}.csv`, csv);
-              }}
-              className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-emerald-600 hover:text-white border border-slate-200 hover:border-emerald-600 rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
-              title="Unduh data Pelajaran ke format CSV"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>CSV</span>
-            </button>
-          </div>
-
-          {/* Ruangan CSV */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-emerald-50/30 hover:border-emerald-200 transition-all flex items-center justify-between gap-3 group">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-2 rounded-lg bg-amber-50 text-amber-700 group-hover:bg-amber-100 transition-colors">
-                <DoorOpen className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-bold text-slate-900 truncate">Data Ruangan &amp; Gedung</h4>
-                <p className="text-[10px] text-slate-500 truncate">{db.rooms.length} ruangan</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const csv = exportRoomsToCsv(db);
-                downloadCsvFile(`rooms_${todayStr}.csv`, csv);
-              }}
-              className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-emerald-600 hover:text-white border border-slate-200 hover:border-emerald-600 rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
-              title="Unduh data Ruangan ke format CSV"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>CSV</span>
-            </button>
-          </div>
-
-          {/* Sesi Jam CSV */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-emerald-50/30 hover:border-emerald-200 transition-all flex items-center justify-between gap-3 group">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-2 rounded-lg bg-sky-50 text-sky-700 group-hover:bg-sky-100 transition-colors">
-                <Clock className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-bold text-slate-900 truncate">Sesi Jam Pelajaran</h4>
-                <p className="text-[10px] text-slate-500 truncate">{db.sessions.length} slot waktu</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const csv = exportSessionsToCsv(db);
-                downloadCsvFile(`sessions_${todayStr}.csv`, csv);
-              }}
-              className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-emerald-600 hover:text-white border border-slate-200 hover:border-emerald-600 rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
-              title="Unduh data Sesi Jam ke format CSV"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>CSV</span>
-            </button>
-          </div>
-
-          {/* Periode Akademik CSV */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-emerald-50/30 hover:border-emerald-200 transition-all flex items-center justify-between gap-3 group">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-2 rounded-lg bg-purple-50 text-purple-700 group-hover:bg-purple-100 transition-colors">
-                <Sliders className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-bold text-slate-900 truncate">Periode Akademik</h4>
-                <p className="text-[10px] text-slate-500 truncate">{db.periods.length} siklus periode</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const csv = exportPeriodsToCsv(db);
-                downloadCsvFile(`periods_${todayStr}.csv`, csv);
-              }}
-              className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-emerald-600 hover:text-white border border-slate-200 hover:border-emerald-600 rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
-              title="Unduh data Periode ke format CSV"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>CSV</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Section 3: Jadwal, Event Log & Materi Silabus CSV */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-4">
-        <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-indigo-600" />
-              <h3 className="text-sm font-bold text-slate-900">
-                Jadwal Operasional, Event Log &amp; Silabus Kurikulum
-              </h3>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Ekspor relasi aturan jadwal aktif, rekaman event log chip, atau kelola impor/ekspor data materi silabus komprehensif.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
-          {/* Rules CSV */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-indigo-50/30 hover:border-indigo-200 transition-all flex flex-col justify-between gap-3 group">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-indigo-700">
-                <FileSpreadsheet className="w-4 h-4" />
-                <span className="text-xs font-bold">Aturan Jadwal (Rules)</span>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-snug">
-                Daftar lengkap {db.rules.length} aturan jadwal dengan kolom ID, hari, sesi, kelas, mapel, guru, dan periode.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const csv = exportRulesToCsv(db);
-                downloadCsvFile(`rules_${todayStr}.csv`, csv);
-              }}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-600 hover:text-white border border-indigo-200 rounded-lg transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Unduh Rules CSV</span>
-            </button>
-          </div>
-
-          {/* Event Log CSV */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-amber-50/30 hover:border-amber-200 transition-all flex flex-col justify-between gap-3 group">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-amber-700">
-                <FileText className="w-4 h-4" />
-                <span className="text-xs font-bold">Event Log Chip</span>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-snug">
-                Log chip jadwal 2-kolom standar (<code className="font-mono text-[10px]">date, rulexID</code>) untuk integrasi kalender dan analisis kehadiran.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const csv = exportEvtlogToCsv(db);
-                downloadCsvFile(`evtlog_${todayStr}.csv`, csv);
-              }}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-600 hover:text-white border border-amber-200 rounded-lg transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Unduh Log Chip CSV</span>
-            </button>
-          </div>
-
-          {/* Silabus Units CSV */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-teal-50/30 hover:border-teal-200 transition-all flex flex-col justify-between gap-3 group">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-teal-700">
-                <FileSpreadsheet className="w-4 h-4" />
-                <span className="text-xs font-bold">Silabus Units CSV</span>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-snug">
-                Ekspor seluruh {(db.syllabusUnits || []).length} unit materi silabus (mapel_id, judul materi, nomor bab, rentang hal).
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const csv = exportSyllabusToCsv(db.syllabusUnits || []);
-                downloadCsvFile(`silabus_units_${todayStr}.csv`, csv);
-              }}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-600 hover:text-white border border-teal-200 rounded-lg transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Unduh Silabus CSV</span>
-            </button>
-          </div>
-
-          {/* Impor Silabus CSV */}
-          <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50/60 transition-all flex flex-col justify-between gap-3 group">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-emerald-800">
-                <Upload className="w-4 h-4" />
-                <span className="text-xs font-bold">Impor Silabus CSV</span>
-              </div>
-              <p className="text-[11px] text-slate-600 leading-snug">
-                Unggah berkas CSV silabus baru dengan opsi mode tambahkan (append) atau gantikan (replace) kurikulum.
-              </p>
-            </div>
-            <button
-              type="button"
-              id="btn-open-syllabus-importer-view"
-              onClick={() => setIsSyllabusImporterOpen(true)}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer shadow-2xs"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Buka Impor Silabus</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Section 2: Universal Database CSV Import & Export Hub */}
+      <UniversalCsvHub
+        db={db}
+        todayStr={todayStr}
+        onUpdateDb={onUpdateDb}
+        onOpenSyllabusModal={() => setIsSyllabusImporterOpen(true)}
+        onSetStatus={setImportStatus}
+      />
 
       {/* Syllabus Importer Modal */}
       <SyllabusImporterModal
@@ -638,6 +352,510 @@ export const ExportImportView: React.FC<ExportImportViewProps> = ({
         db={db}
         onImportUnits={handleImportSyllabusUnits}
       />
+    </div>
+  );
+};
+
+// ----------------------------------------------------------------------------
+// Universal Database CSV Hub Component
+// ----------------------------------------------------------------------------
+interface UniversalCsvHubProps {
+  db: DatabaseState;
+  todayStr: string;
+  onUpdateDb: (updater: (prev: DatabaseState) => DatabaseState) => void;
+  onOpenSyllabusModal: () => void;
+  onSetStatus: (status: { type: 'success' | 'error'; message: string }) => void;
+}
+
+const UniversalCsvHub: React.FC<UniversalCsvHubProps> = ({
+  db,
+  todayStr,
+  onUpdateDb,
+  onOpenSyllabusModal,
+  onSetStatus,
+}) => {
+  const [selectedTable, setSelectedTable] = useState<UniversalTableKey>('students');
+  const [importMode, setImportMode] = useState<'append' | 'replace'>('append');
+  const [csvPreview, setCsvPreview] = useState<{ headers: string[]; rows: string[][] } | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const csvFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const tableConfig = UNIVERSAL_TABLE_CONFIGS[selectedTable];
+
+  // Helper to get raw data for table
+  const getTableRows = (key: UniversalTableKey): string[][] => {
+    switch (key) {
+      case 'students':
+        // Note: Students are maintained in Turso or fallback
+        return [];
+      case 'enrollments':
+        return [];
+      case 'classes':
+        return (db.classes || []).map((c) => [
+          c.id,
+          c.name,
+          String(c.grade || ''),
+          c.section || '',
+          c.color || '',
+          c.defaultRoomId || '',
+        ]);
+      case 'teachers':
+        return (db.teachers || []).map((t) => [
+          t.id,
+          t.name,
+          t.panggilan || '',
+          t.email || '',
+          t.department || '',
+          t.color || '',
+          String(t.maxPeriodsPerWeek || 18),
+        ]);
+      case 'subjects':
+        return (db.subjects || []).map((s) => [
+          s.id,
+          s.name,
+          s.code || '',
+          s.category || '',
+          s.color || '',
+          String(s.weeklyPeriods || 2),
+        ]);
+      case 'rooms':
+        return (db.rooms || []).map((r) => [
+          r.id,
+          r.name,
+          r.building || '',
+          String(r.capacity || 30),
+          r.type || 'Standard',
+        ]);
+      case 'books':
+        return (db.books || []).map((b) => [
+          b.id,
+          b.title,
+          b.author || '',
+          b.publisher || '',
+          String(b.volumeCount || 1),
+          b.displayCode || (b as any).display_code || '',
+        ]);
+      case 'sessions':
+        return (db.sessions || []).map((ses) => [
+          ses.id,
+          ses.name,
+          ses.startTime || (ses as any).start_time || '',
+          ses.endTime || (ses as any).end_time || '',
+          String(ses.sortOrder || (ses as any).sort_order || 1),
+        ]);
+      case 'rules':
+        return (db.rules || []).map((r) => [
+          r.id,
+          r.subjectId || '',
+          r.classId || '',
+          r.teacherId || '',
+          r.roomId || '',
+          r.sessionId || '',
+          Array.isArray(r.daysOfWeek) ? r.daysOfWeek.join(';') : String(r.dayOfWeek || ''),
+          r.active ? '1' : '0',
+        ]);
+      case 'syllabus':
+        return (db.syllabusUnits || []).map((u) => [
+          u.id,
+          u.subjectId,
+          u.bookId,
+          u.title,
+          String(u.chapter || 1),
+          String(u.pageStart || 1),
+          String(u.pageEnd || 10),
+        ]);
+      default:
+        return [];
+    }
+  };
+
+  // Download Existing Table Data CSV
+  const handleExportTable = async () => {
+    if (selectedTable === 'syllabus') {
+      const csv = exportSyllabusToCsv(db.syllabusUnits || [], db);
+      downloadCsvFile(`silabus_units_${todayStr}.csv`, csv);
+      return;
+    }
+
+    if (selectedTable === 'students' || selectedTable === 'enrollments') {
+      try {
+        const res = await fetch('/api/enrollment/overview');
+        if (res.ok) {
+          const data = await res.json();
+          if (selectedTable === 'students') {
+            const rows = (data.students || []).map((s: any) => [
+              escapeCsvValue(s.id),
+              escapeCsvValue(s.nisn),
+              escapeCsvValue(s.name),
+              escapeCsvValue(s.gender),
+              escapeCsvValue(s.phone || ''),
+            ]);
+            const csv = [tableConfig.headers.join(','), ...rows.map((r: any[]) => r.join(','))].join('\r\n');
+            downloadCsvFile(`santri_${todayStr}.csv`, csv);
+            return;
+          } else {
+            const rows = (data.enrollments || []).map((e: any) => [
+              escapeCsvValue(e.classId),
+              escapeCsvValue(e.studentId),
+              escapeCsvValue(e.academicYear),
+              escapeCsvValue(e.active),
+            ]);
+            const csv = [tableConfig.headers.join(','), ...rows.map((r: any[]) => r.join(','))].join('\r\n');
+            downloadCsvFile(`enrollment_${todayStr}.csv`, csv);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Backend fetch failed, fallback', e);
+      }
+    }
+
+    const rows = getTableRows(selectedTable);
+    const csvContent = [
+      tableConfig.headers.join(','),
+      ...rows.map((row) => row.map(escapeCsvValue).join(',')),
+    ].join('\r\n');
+    downloadCsvFile(`${selectedTable}_${todayStr}.csv`, csvContent);
+  };
+
+  // Download Sample Template CSV
+  const handleDownloadTemplate = () => {
+    const csvContent = [
+      tableConfig.headers.join(','),
+      tableConfig.sampleRow.map(escapeCsvValue).join(','),
+    ].join('\r\n');
+    downloadCsvFile(`template_${selectedTable}.csv`, csvContent);
+  };
+
+  // Read CSV for preview
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPreviewFile(file);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      const rows = parseCsvRows(text);
+      if (rows.length > 0) {
+        setCsvPreview({
+          headers: rows[0],
+          rows: rows.slice(1, 6),
+        });
+      }
+    };
+    reader.readAsText(file);
+    if (e.target) e.target.value = '';
+  };
+
+  // Execute CSV Import
+  const handleExecuteImport = async () => {
+    if (!previewFile) return;
+
+    if (selectedTable === 'syllabus') {
+      onOpenSyllabusModal();
+      setCsvPreview(null);
+      setPreviewFile(null);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target?.result as string;
+      const parsed = parseCsvRows(text);
+      if (parsed.length < 2) {
+        onSetStatus({ type: 'error', message: 'Berkas CSV tidak memiliki baris data.' });
+        return;
+      }
+
+      const rows = parsed.slice(1);
+
+      if (selectedTable === 'students') {
+        let successCount = 0;
+        for (const row of rows) {
+          const [id, nisn, name, gender, phone] = row;
+          if (!name) continue;
+          try {
+            await fetch('/api/enrollment/students', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                student: { id: id || `std-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, nisn, name, gender: gender === 'P' ? 'P' : 'L', phone },
+              }),
+            });
+            successCount++;
+          } catch {}
+        }
+        onSetStatus({ type: 'success', message: `Berhasil mengimpor ${successCount} data santri ke basis data.` });
+        setCsvPreview(null);
+        setPreviewFile(null);
+        return;
+      }
+
+      // Local State Entities Importer
+      onUpdateDb((prev) => {
+        const next = { ...prev };
+        if (selectedTable === 'classes') {
+          const newClasses = rows.map((r) => ({
+            id: r[0] || `cls-${Date.now()}`,
+            name: r[1] || 'Kelas Baru',
+            grade: r[2] ? Number(r[2]) : undefined,
+            section: r[3] || undefined,
+            color: r[4] || '#E2E8F0',
+            defaultRoomId: r[5] || undefined,
+          }));
+          next.classes = importMode === 'replace' ? newClasses : [...next.classes, ...newClasses];
+        } else if (selectedTable === 'teachers') {
+          const newTeachers = rows.map((r) => ({
+            id: r[0] || `tch-${Date.now()}`,
+            name: r[1] || 'Ustadz Baru',
+            panggilan: r[2] || undefined,
+            email: r[3] || undefined,
+            department: r[4] || undefined,
+            color: r[5] || '#0284C7',
+            maxPeriodsPerWeek: r[6] ? Number(r[6]) : 18,
+          }));
+          next.teachers = importMode === 'replace' ? newTeachers : [...next.teachers, ...newTeachers];
+        } else if (selectedTable === 'subjects') {
+          const newSubjects = rows.map((r) => ({
+            id: r[0] || `sub-${Date.now()}`,
+            name: r[1] || 'Pelajaran Baru',
+            code: r[2] || undefined,
+            category: r[3] || undefined,
+            color: r[4] || '#3B82F6',
+            weeklyPeriods: r[5] ? Number(r[5]) : 2,
+          }));
+          next.subjects = importMode === 'replace' ? newSubjects : [...next.subjects, ...newSubjects];
+        } else if (selectedTable === 'rooms') {
+          const newRooms = rows.map((r) => ({
+            id: r[0] || `rm-${Date.now()}`,
+            name: r[1] || 'Ruangan Baru',
+            building: r[2] || undefined,
+            capacity: r[3] ? Number(r[3]) : 30,
+            type: (r[4] as any) || 'Standard',
+          }));
+          next.rooms = importMode === 'replace' ? newRooms : [...next.rooms, ...newRooms];
+        } else if (selectedTable === 'books') {
+          const newBooks = rows.map((r) => ({
+            id: r[0] || `bk-${Date.now()}`,
+            title: r[1] || 'Kitab Baru',
+            author: r[2] || undefined,
+            publisher: r[3] || undefined,
+            volumeCount: r[4] ? Number(r[4]) : 1,
+            displayCode: r[5] || undefined,
+          }));
+          next.books = importMode === 'replace' ? newBooks : [...(next.books || []), ...newBooks];
+        }
+        return next;
+      });
+
+      onSetStatus({ type: 'success', message: `Berhasil mengimpor ${rows.length} baris data ke tabel ${tableConfig.label}.` });
+      setCsvPreview(null);
+      setPreviewFile(null);
+    };
+    reader.readAsText(previewFile);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-5">
+      <div className="border-b border-slate-100 pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Database className="w-5 h-5 text-indigo-600" />
+            <h3 className="text-sm font-bold text-slate-900">
+              Pusat Ekspor &amp; Impor Universal CSV (Pilih Basis Data)
+            </h3>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              Semua Tabel Tersedia
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Pilih tabel entitas di bawah untuk mengunduh template spreadsheet, ekspor CSV, atau mengunggah data massal.
+          </p>
+        </div>
+        <span className="text-[11px] font-mono text-slate-400">
+          Tanggal: {todayStr}
+        </span>
+      </div>
+
+      {/* Table Selector Dropdown & Tabs */}
+      <div className="space-y-2">
+        <label className="block text-xs font-bold text-slate-700">
+          Pilih Tabel Basis Data:
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {(Object.keys(UNIVERSAL_TABLE_CONFIGS) as UniversalTableKey[]).map((key) => {
+            const isSelected = selectedTable === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setSelectedTable(key);
+                  setCsvPreview(null);
+                  setPreviewFile(null);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {UNIVERSAL_TABLE_CONFIGS[key].label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected Table Card & Operations */}
+      <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/40 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-3">
+          <div>
+            <h4 className="text-xs font-bold text-indigo-950 flex items-center gap-2">
+              <span>Tabel Terpilih: {tableConfig.label}</span>
+              <span className="font-mono text-[10px] bg-indigo-200/60 text-indigo-900 px-1.5 py-0.5 rounded">
+                [{tableConfig.key}]
+              </span>
+            </h4>
+            <p className="text-[11px] text-indigo-700 mt-0.5">
+              {tableConfig.description}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg transition-colors cursor-pointer"
+              title="Unduh file format CSV kosong dengan kolom yang valid"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Unduh Template CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportTable}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-2xs cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Ekspor Data CSV</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Upload File Section for this table */}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span className="text-xs font-bold text-slate-800">
+              Impor Berkas CSV ke Tabel {tableConfig.label}:
+            </span>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="text-slate-500">Mode Impor:</span>
+              <label className="inline-flex items-center gap-1 text-slate-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name="importMode"
+                  value="append"
+                  checked={importMode === 'append'}
+                  onChange={() => setImportMode('append')}
+                  className="text-indigo-600"
+                />
+                <span>Tambahkan (Append)</span>
+              </label>
+              <label className="inline-flex items-center gap-1 text-slate-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name="importMode"
+                  value="replace"
+                  checked={importMode === 'replace'}
+                  onChange={() => setImportMode('replace')}
+                  className="text-indigo-600"
+                />
+                <span>Gantikan Semua (Replace)</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <input
+              ref={csvFileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileSelected}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => csvFileInputRef.current?.click()}
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-colors cursor-pointer"
+            >
+              <Upload className="w-4 h-4 text-slate-500" />
+              <span>Pilih Berkas CSV ({tableConfig.label})</span>
+            </button>
+            {previewFile && (
+              <span className="text-xs font-medium text-slate-600 truncate max-w-xs">
+                Berkas: {previewFile.name} ({(previewFile.size / 1024).toFixed(1)} KB)
+              </span>
+            )}
+          </div>
+
+          {/* CSV Preview Table */}
+          {csvPreview && (
+            <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2 mt-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                <span>Pratinjau Data CSV (5 Baris Pertama):</span>
+                <span className="text-[11px] text-slate-400 font-normal">
+                  {csvPreview.headers.length} Kolom
+                </span>
+              </div>
+              <div className="overflow-x-auto max-h-40 border border-slate-100 rounded-lg">
+                <table className="min-w-full text-[11px] text-left">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      {csvPreview.headers.map((h, i) => (
+                        <th key={i} className="px-2.5 py-1.5 font-bold text-slate-700">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {csvPreview.rows.map((row, rIdx) => (
+                      <tr key={rIdx} className="hover:bg-slate-50/50">
+                        {row.map((cell, cIdx) => (
+                          <td key={cIdx} className="px-2.5 py-1 text-slate-600 truncate max-w-[150px]">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCsvPreview(null);
+                    setPreviewFile(null);
+                  }}
+                  className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteImport}
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                >
+                  Mulai Impor ke Tabel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

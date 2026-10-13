@@ -31,7 +31,7 @@ export const SyllabusImporterModal: React.FC<SyllabusImporterModalProps> = ({
   const [parsedUnits, setParsedUnits] = useState<SyllabusUnit[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [importMode, setImportMode] = useState<'replace' | 'append'>('append');
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(db.subjects[0]?.id || '');
+  const [selectedBookId, setSelectedBookId] = useState<string>(db.books?.[0]?.id || '');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,30 +42,31 @@ export const SyllabusImporterModal: React.FC<SyllabusImporterModalProps> = ({
     reader.onload = (event) => {
       const content = event.target?.result as string;
       setCsvText(content);
-      doParse(content, selectedSubjectId);
+      doParse(content, selectedBookId);
     };
     reader.readAsText(file);
   };
 
-  const doParse = (text: string, subId: string) => {
-    const result = parseSyllabusCsv(text, db.subjects, subId);
+  const doParse = (text: string, bookId: string) => {
+    const result = parseSyllabusCsv(text, db.books || [], db.subjects || [], bookId);
     setParsedUnits(result.units);
     setParseErrors(result.errors);
   };
 
   const handleTextChange = (val: string) => {
     setCsvText(val);
-    doParse(val, selectedSubjectId);
+    doParse(val, selectedBookId);
   };
 
   const handleDownloadSample = () => {
-    const subjectCode = db.subjects.find((s) => s.id === selectedSubjectId)?.code || 'MATH101';
-    const sample = getSampleSyllabusCsv(subjectCode);
+    const selectedBook = (db.books || []).find((b) => b.id === selectedBookId);
+    const bookCode = selectedBook ? (selectedBook.displayCode || selectedBook.display_code || selectedBook.id) : 'BK-01';
+    const sample = getSampleSyllabusCsv(bookCode);
     const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `template_silabus_${selectedSubjectId}.csv`;
+    link.download = `template_silabus_${bookCode}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -76,7 +77,7 @@ export const SyllabusImporterModal: React.FC<SyllabusImporterModalProps> = ({
     onClose();
   };
 
-  const subjectMap = new Map(db.subjects.map((s) => [s.id, s.name]));
+  const bookMap = new Map<string, any>((db.books || []).map((b) => [b.id, b]));
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
@@ -92,7 +93,7 @@ export const SyllabusImporterModal: React.FC<SyllabusImporterModalProps> = ({
                 Impor Silabus Materi (CSV SyllabusUnit)
               </h3>
               <p className="text-xs text-slate-500">
-                Format: mapel_id, mapel_n, mtr, hal pertama, hal terakhir, pt, no, eno
+                Format: book_code, order, title, page_start, page_end, part
               </p>
             </div>
           </div>
@@ -107,21 +108,21 @@ export const SyllabusImporterModal: React.FC<SyllabusImporterModalProps> = ({
 
         {/* Body */}
         <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
-          {/* Controls: Template download & Default subject */}
+          {/* Controls: Template download & Default Book */}
           <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
             <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-slate-700">Mata Pelajaran Bawaan:</label>
+              <label className="text-xs font-semibold text-slate-700">Buku / Kitab Acuan:</label>
               <select
-                value={selectedSubjectId}
+                value={selectedBookId}
                 onChange={(e) => {
-                  setSelectedSubjectId(e.target.value);
+                  setSelectedBookId(e.target.value);
                   if (csvText) doParse(csvText, e.target.value);
                 }}
-                className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-slate-800 font-medium"
+                className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-slate-800 font-medium max-w-[220px] truncate"
               >
-                {db.subjects.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.code})
+                {(db.books || []).map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.title} ({b.displayCode || b.display_code || b.id})
                   </option>
                 ))}
               </select>
@@ -167,7 +168,7 @@ export const SyllabusImporterModal: React.FC<SyllabusImporterModalProps> = ({
               rows={4}
               value={csvText}
               onChange={(e) => handleTextChange(e.target.value)}
-              placeholder="mapel_id,mapel_n,mtr,hal pertama,hal terakhir,pt,no,eno&#10;sub-math,1,Pengantar Aljabar,1,14,1,1,12"
+              placeholder="book_code,order,title,page_start,page_end,part&#10;bk-arb,1,Mukaddimah & Bab 1,1,20,1"
               className="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500"
             />
           </div>
@@ -199,7 +200,7 @@ export const SyllabusImporterModal: React.FC<SyllabusImporterModalProps> = ({
                   Pratinjau {parsedUnits.length} Bab Materi Terbaca:
                 </span>
                 <span className="text-[11px] text-slate-500">
-                  Diurutkan berdasarkan mapel_n per mapel_id
+                  Diurutkan berdasarkan urutan per buku
                 </span>
               </div>
 
@@ -208,26 +209,33 @@ export const SyllabusImporterModal: React.FC<SyllabusImporterModalProps> = ({
                   <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0">
                     <tr>
                       <th className="p-2 border-b border-slate-200">Urutan</th>
-                      <th className="p-2 border-b border-slate-200">Mapel</th>
+                      <th className="p-2 border-b border-slate-200">Buku / Kitab</th>
                       <th className="p-2 border-b border-slate-200">Format Tampilan Bab</th>
-                      <th className="p-2 border-b border-slate-200">No - Eno</th>
+                      <th className="p-2 border-b border-slate-200">Halaman</th>
                       <th className="p-2 border-b border-slate-200">Bobot</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {parsedUnits.map((unit) => {
-                      const weight = Math.max(1, (unit.eno || 0) - (unit.no || 0) + 1);
+                      const pStart = typeof unit.page_start === 'number' ? unit.page_start : parseInt(String(unit.page_start), 10);
+                      const pEnd = typeof unit.page_end === 'number' ? unit.page_end : parseInt(String(unit.page_end), 10);
+                      const weight = (!isNaN(pStart) && !isNaN(pEnd) && pEnd >= pStart)
+                        ? (pEnd - pStart + 1)
+                        : 1;
+                      const bookObj = unit.bookId ? bookMap.get(unit.bookId) : undefined;
+                      const bookTitle = bookObj ? bookObj.title : (unit.bookCode || unit.bookId || '-');
+
                       return (
                         <tr key={unit.id} className="hover:bg-slate-50">
                           <td className="p-2 font-mono text-slate-500">#{unit.order}</td>
-                          <td className="p-2 font-medium text-slate-700 truncate max-w-[120px]">
-                            {subjectMap.get(unit.subject_id) || unit.subject_id}
+                          <td className="p-2 font-medium text-slate-700 truncate max-w-[150px]" title={bookTitle}>
+                            {bookTitle}
                           </td>
                           <td className="p-2 font-medium text-slate-900">
                             {formatUnitDisplay(unit)}
                           </td>
                           <td className="p-2 font-mono text-slate-600 text-[11px]">
-                            {unit.no} - {unit.eno}
+                            {unit.page_start ? `Hal. ${unit.page_start} - ${unit.page_end || '?'}` : '-'}
                           </td>
                           <td className="p-2 font-bold text-amber-700 font-mono">
                             {weight}

@@ -1,4 +1,4 @@
-import { SyllabusUnit, DatabaseState } from '../types';
+import { SyllabusUnit, DatabaseState, Book, Subject } from '../types';
 
 /**
  * Escapes a field for CSV format (RFC 4180)
@@ -63,30 +63,42 @@ function cleanHeaderKey(h: string): string {
 }
 
 /**
- * Parse Syllabus CSV per specification:
- * - mapel_id -> subject_code
- * - mapel_n -> order
- * - mtr -> title
- * - hal pertama -> page_start
- * - hal terakhir -> page_end
- * - pt -> part
- * - no -> no
- * - eno -> eno
- * Ignore all other source columns.
- * Sort by mapel_n per mapel_id to assign order — don't trust file row order.
+ * Parse Syllabus CSV per Book-centric specification:
+ * - book_code -> Book (matched against db.books by id, code, or displayCode)
+ * - order -> sequential order number
+ * - title -> syllabus material title
+ * - page_start -> start page
+ * - page_end -> end page
+ * - part -> volume / part number
+ *
+ * Subject relation is auto-inferred from Subject whose default_book matches this book.
+ * Columns 'no' and 'eno' are removed.
  */
 export function parseSyllabusCsv(
   csvText: string,
-  subjects: { id: string; code: string }[],
-  defaultSubjectId?: string
+  books: Book[],
+  subjectsOrDefaultBookId?: Subject[] | string,
+  defaultBookId?: string
 ): { units: SyllabusUnit[]; errors: string[]; rowCount: number } {
+  let subjects: Subject[] = [];
+  let resolvedDefaultBookId: string | undefined = defaultBookId;
+
+  if (typeof subjectsOrDefaultBookId === 'string') {
+    resolvedDefaultBookId = subjectsOrDefaultBookId;
+  } else if (Array.isArray(subjectsOrDefaultBookId)) {
+    subjects = subjectsOrDefaultBookId;
+  }
+
   const errors: string[] = [];
   const rows = parseCsvRows(csvText);
 
-  // Look up subjects by their CODE (e.g. "MATH101"), not their internal id.
-  const codeToId = new Map(
-    subjects.map((s) => [s.code.trim().toLowerCase(), s.id])
-  );
+  // Look up books by id, code, or displayCode (case-insensitive)
+  const bookLookup = new Map<string, Book>();
+  for (const b of books || []) {
+    if (b.id) bookLookup.set(b.id.trim().toLowerCase(), b);
+    if (b.display_code) bookLookup.set(b.display_code.trim().toLowerCase(), b);
+    if (b.displayCode) bookLookup.set(b.displayCode.trim().toLowerCase(), b);
+  }
 
   if (rows.length < 2) {
     return { units: [], errors: ['File CSV kosong atau tidak memiliki baris data.'], rowCount: 0 };
@@ -96,116 +108,119 @@ export function parseSyllabusCsv(
   const headerKeys = rawHeaders.map(cleanHeaderKey);
 
   // Find column indices
-  const colSubjectId = headerKeys.findIndex((k) =>
-    ['mapelid', 'subjectid', 'mapel', 'subject'].includes(k)
+  const colBookCode = headerKeys.findIndex((k) =>
+    ['bookcode', 'bookid', 'buku', 'kitab', 'kodebuku', 'book', 'kode'].includes(k)
   );
   const colOrder = headerKeys.findIndex((k) =>
-    ['mapeln', 'ordern', 'order', 'n', 'noorder', 'nomor'].includes(k)
+    ['order', 'ordern', 'urutan', 'mapeln', 'n', 'noorder', 'nomor'].includes(k)
   );
   const colTitle = headerKeys.findIndex((k) =>
-    ['mtr', 'materi', 'title', 'judul', 'bab', 'topik'].includes(k)
+    ['title', 'judul', 'mtr', 'materi', 'bab', 'topik'].includes(k)
   );
   const colPageStart = headerKeys.findIndex((k) =>
-    ['halpertama', 'halawal', 'pagestart', 'startpage', 'hal1'].includes(k)
+    ['pagestart', 'startpage', 'halpertama', 'halawal', 'hal1', 'halamanawal'].includes(k)
   );
   const colPageEnd = headerKeys.findIndex((k) =>
-    ['halterakhir', 'halakhir', 'pageend', 'endpage', 'hal2'].includes(k)
+    ['pageend', 'endpage', 'halterakhir', 'halakhir', 'hal2', 'halamanakhir'].includes(k)
   );
   const colPart = headerKeys.findIndex((k) =>
-    ['pt', 'part', 'jilid', 'bagian', 'volume', 'vol'].includes(k)
-  );
-  const colNo = headerKeys.findIndex((k) =>
-    ['no', 'startno', 'nounit', 'nount'].includes(k)
-  );
-  const colEno = headerKeys.findIndex((k) =>
-    ['eno', 'endno', 'enounit', 'enount', 'akhir'].includes(k)
+    ['part', 'pt', 'jilid', 'bagian', 'volume', 'vol'].includes(k)
   );
 
   const rawParsedUnits: Array<{
-    subject_id: string;
-    raw_mapel_n: number;
+    resolvedBook: Book;
+    bookId: string;
+    subject_id?: string;
+    rawOrder: number;
     title: string;
     page_start: string | number;
     page_end: string | number;
     part: string | number;
-    no: number;
-    eno: number;
   }> = [];
 
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
     if (row.length === 0 || row.every((val) => val === '')) continue;
 
-    let subjectId: string;
-    if (colSubjectId !== -1 && row[colSubjectId]) {
-      const rawCode = row[colSubjectId].trim();
-      const resolvedId = codeToId.get(rawCode.toLowerCase());
-      if (!resolvedId) {
-        errors.push(`Baris ${r + 1}: Kode mapel "${rawCode}" tidak ditemukan di daftar Mata Pelajaran.`);
+    let resolvedBook: Book | undefined;
+    if (colBookCode !== -1 && row[colBookCode]) {
+      const rawCode = row[colBookCode].trim();
+      resolvedBook = bookLookup.get(rawCode.toLowerCase());
+      if (!resolvedBook) {
+        errors.push(`Baris ${r + 1}: Kode buku "${rawCode}" tidak ditemukan di daftar Buku/Kitab.`);
         continue;
       }
-      subjectId = resolvedId;
-    } else if (defaultSubjectId) {
-      subjectId = defaultSubjectId;
+    } else if (resolvedDefaultBookId) {
+      resolvedBook = bookLookup.get(resolvedDefaultBookId.toLowerCase()) || (books || []).find((b) => b.id === resolvedDefaultBookId);
+      if (!resolvedBook) {
+        errors.push(`Baris ${r + 1}: Kolom book_code kosong dan buku acuan bawaan tidak valid.`);
+        continue;
+      }
     } else {
-      errors.push(`Baris ${r + 1}: Kolom mapel_id tidak ditemukan atau kosong.`);
+      errors.push(`Baris ${r + 1}: Kolom book_code kosong atau tidak ditemukan.`);
       continue;
     }
 
+    // Auto-infer subject from db.subjects whose default_book matches this book
+    const bookId = resolvedBook.id;
+    const subjectForBook = subjects.find(
+      (s) =>
+        s.default_book === bookId ||
+        s.defaultBookId === bookId ||
+        s.default_book === (resolvedBook?.displayCode || resolvedBook?.display_code) ||
+        s.primary_book_code === bookId ||
+        s.primary_book_code === (resolvedBook?.displayCode || resolvedBook?.display_code) ||
+        (resolvedBook?.defaultSubjectId && s.id === resolvedBook.defaultSubjectId)
+    );
+    const inferredSubjectId = subjectForBook ? subjectForBook.id : (resolvedBook.defaultSubjectId || '');
+
     const rawNStr = colOrder !== -1 ? row[colOrder] : '';
     const parsedN = parseFloat(rawNStr);
-    const rawMapelN = isNaN(parsedN) ? r : parsedN;
+    const rawOrder = isNaN(parsedN) ? r : parsedN;
 
     const title = (colTitle !== -1 ? row[colTitle] : '') || `Materi ${r}`;
     const pageStart = colPageStart !== -1 ? row[colPageStart] : '';
     const pageEnd = colPageEnd !== -1 ? row[colPageEnd] : '';
-    const part = colPart !== -1 ? row[colPart] : '';
-
-    const noVal = colNo !== -1 ? parseInt(row[colNo], 10) : NaN;
-    const enoVal = colEno !== -1 ? parseInt(row[colEno], 10) : NaN;
-
-    const safeNo = isNaN(noVal) ? r : noVal;
-    const safeEno = isNaN(enoVal) ? safeNo : enoVal;
+    const part = colPart !== -1 && row[colPart] ? row[colPart] : '1';
 
     rawParsedUnits.push({
-      subject_id: subjectId.trim(),
-      raw_mapel_n: rawMapelN,
+      resolvedBook,
+      bookId: resolvedBook.id,
+      subject_id: inferredSubjectId || undefined,
+      rawOrder,
       title: title.trim(),
       page_start: pageStart,
       page_end: pageEnd,
-      part: part,
-      no: safeNo,
-      eno: safeEno
+      part
     });
   }
 
-  // Group by mapel_id and sort by mapel_n per mapel_id to assign order — don't trust file row order
+  // Group by bookId and sort strictly by order per book to assign clean sequential order
   const grouped = new Map<string, typeof rawParsedUnits>();
   for (const item of rawParsedUnits) {
-    if (!grouped.has(item.subject_id)) {
-      grouped.set(item.subject_id, []);
+    if (!grouped.has(item.bookId)) {
+      grouped.set(item.bookId, []);
     }
-    grouped.get(item.subject_id)!.push(item);
+    grouped.get(item.bookId)!.push(item);
   }
 
   const finalUnits: SyllabusUnit[] = [];
 
-  grouped.forEach((subjectItems, subId) => {
-    // Sort strictly by mapel_n
-    subjectItems.sort((a, b) => a.raw_mapel_n - b.raw_mapel_n);
+  grouped.forEach((bookItems, bId) => {
+    bookItems.sort((a, b) => a.rawOrder - b.rawOrder);
 
-    subjectItems.forEach((item, index) => {
-      const assignedOrder = index + 1; // clean 1-based sequential order
+    bookItems.forEach((item, index) => {
+      const assignedOrder = index + 1;
       finalUnits.push({
-        id: `unit-${subId}-${assignedOrder}`,
-        subject_id: subId,
+        id: `unit-${bId}-${assignedOrder}`,
+        bookId: bId,
+        bookCode: item.resolvedBook.displayCode || item.resolvedBook.display_code || bId,
+        subject_id: item.subject_id,
         order: assignedOrder,
         title: item.title,
         page_start: item.page_start,
         page_end: item.page_end,
-        part: item.part,
-        no: item.no,
-        eno: item.eno
+        part: item.part
       });
     });
   });
@@ -219,18 +234,32 @@ export function parseSyllabusCsv(
 
 /**
  * Generates sample CSV template for SyllabusUnit
+ * Template headers: book_code,order,title,page_start,page_end,part
+ * If books input is provided, outputs 1 clean sample row per book in db.books
  */
-export function getSampleSyllabusCsv(subjectId: string = 'MT'): string {
-  const headers = ['mapel_id', 'mapel_n', 'mtr', 'hal pertama', 'hal terakhir', 'pt', 'no', 'eno'];
+export function getSampleSyllabusCsv(booksInput?: Book[] | string): string {
+  const headers = ['book_code', 'order', 'title', 'page_start', 'page_end', 'part'];
+
+  if (Array.isArray(booksInput) && booksInput.length > 0) {
+    const sampleRows = booksInput.map((b, i) => {
+      const code = b.displayCode || b.display_code || b.id;
+      return [
+        code,
+        '1',
+        `Mukaddimah & Bab 1 (${b.title})`,
+        '1',
+        '20',
+        '1'
+      ];
+    });
+    return [headers.join(','), ...sampleRows.map((r) => r.map(escapeCsv).join(','))].join('\r\n');
+  }
+
+  const defaultCode = typeof booksInput === 'string' && booksInput.trim() ? booksInput.trim() : 'BK-ARB';
   const sampleRows = [
-    [subjectId, '1', 'Pengantar Aljabar & Persamaan Linear', '1', '14', '1', '1', '12'],
-    [subjectId, '2', 'Sistem Pertidaksamaan Linear Dua Variabel', '15', '28', '1', '13', '25'],
-    [subjectId, '3', 'Matriks & Operasi Determinan', '29', '44', '1', '26', '40'],
-    [subjectId, '4', 'Vektor pada Dimensi Dua dan Tiga', '45', '60', '1', '41', '55'],
-    [subjectId, '5', 'Fungsi Kuadrat & Grafik Parabola', '61', '78', '2', '56', '72'],
-    [subjectId, '6', 'Trigonometri Dasar & Identitas Sudut', '79', '98', '2', '73', '90'],
-    [subjectId, '7', 'Turunan Fungsi Aljabar', '99', '120', '2', '91', '110'],
-    [subjectId, '8', 'Integral Tak Tentu & Luas Daerah', '121', '145', '2', '111', '130']
+    [defaultCode, '1', 'Mukaddimah & Kaidah Dasar', '1', '14', '1'],
+    [defaultCode, '2', 'Bab 1: Pembahasan Utama', '15', '30', '1'],
+    [defaultCode, '3', 'Bab 2: Pendalaman & Latihan', '31', '50', '1']
   ];
 
   return [headers.join(','), ...sampleRows.map((r) => r.map(escapeCsv).join(','))].join('\r\n');
@@ -238,37 +267,46 @@ export function getSampleSyllabusCsv(subjectId: string = 'MT'): string {
 
 /**
  * Export all syllabus units to CSV
+ * Headers: book_id,book_title,order,title,page_start,page_end,part,unit_weight
  */
 export function exportSyllabusUnitsToCsv(units: SyllabusUnit[], db?: DatabaseState): string {
   const headers = [
-    'id',
-    'mapel_id',
-    'subject_name',
-    'mapel_n',
-    'mtr',
-    'hal pertama',
-    'hal terakhir',
-    'pt',
-    'no',
-    'eno',
+    'book_id',
+    'book_title',
+    'order',
+    'title',
+    'page_start',
+    'page_end',
+    'part',
     'unit_weight'
   ];
 
-  const subMap = new Map((db?.subjects || []).map((s) => [s.id, s.name]));
+  const bookLookup = new Map<string, Book>();
+  for (const b of db?.books || []) {
+    if (b.id) bookLookup.set(b.id, b);
+    if (b.display_code) bookLookup.set(b.display_code, b);
+    if (b.displayCode) bookLookup.set(b.displayCode, b);
+  }
 
   const rows = units.map((u) => {
-    const weight = Math.max(1, (u.eno || 0) - (u.no || 0) + 1);
+    const book = (u.bookId && bookLookup.get(u.bookId)) || (u.bookCode && bookLookup.get(u.bookCode));
+    const bookIdVal = book ? (book.displayCode || book.display_code || book.id) : (u.bookCode || u.bookId || '');
+    const bookTitleVal = book ? book.title : '';
+
+    const pStart = typeof u.page_start === 'number' ? u.page_start : parseInt(String(u.page_start), 10);
+    const pEnd = typeof u.page_end === 'number' ? u.page_end : parseInt(String(u.page_end), 10);
+    const weight = (!isNaN(pStart) && !isNaN(pEnd) && pEnd >= pStart)
+      ? (pEnd - pStart + 1)
+      : 1;
+
     return [
-      escapeCsv(u.id),
-      escapeCsv(u.subject_id),
-      escapeCsv(subMap.get(u.subject_id) || ''),
+      escapeCsv(bookIdVal),
+      escapeCsv(bookTitleVal),
       escapeCsv(u.order),
       escapeCsv(u.title),
       escapeCsv(u.page_start),
       escapeCsv(u.page_end),
-      escapeCsv(u.part),
-      escapeCsv(u.no),
-      escapeCsv(u.eno),
+      escapeCsv(u.part ?? 1),
       escapeCsv(weight)
     ].join(',');
   });

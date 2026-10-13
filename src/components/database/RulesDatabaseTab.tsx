@@ -26,7 +26,9 @@ import {
   Download,
   Filter,
   RefreshCw,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { exportRulesToCsv, downloadCsvFile } from '../../utils/csvHelper';
 import { detectConflicts } from '../../utils/scheduleEngine';
@@ -42,6 +44,7 @@ interface RulesDatabaseTabProps {
   isAdmin?: boolean;
   onOpenAdminLogin?: () => void;
   initialSubView?: 'rules' | 'kaldik';
+  hideSubViewSwitcher?: boolean;
 }
 
 export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
@@ -53,7 +56,8 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
   onDeleteRule,
   isAdmin = true,
   onOpenAdminLogin,
-  initialSubView = 'rules'
+  initialSubView = 'rules',
+  hideSubViewSwitcher = false
 }) => {
   // Sub-view mode: 'rules' (Aturan Jadwal KBM) vs 'kaldik' (Kaldik Events Database)
   const [activeSubView, setActiveSubView] = useState<'rules' | 'kaldik'>(
@@ -100,34 +104,7 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
       c.involvedRuleIds.forEach((id) => conflictingRuleIds.add(id));
     });
 
-    // 2. Scan db.periods for overlapping date ranges
-    const periodOverlaps: {
-      period1: Period;
-      period2: Period;
-      overlapStart: string;
-      overlapEnd: string;
-    }[] = [];
-
-    for (let i = 0; i < db.periods.length; i++) {
-      for (let j = i + 1; j < db.periods.length; j++) {
-        const p1 = db.periods[i];
-        const p2 = db.periods[j];
-        if (p1.startDate && p1.endDate && p2.startDate && p2.endDate) {
-          if (p1.startDate <= p2.endDate && p2.startDate <= p1.endDate) {
-            const overlapStart = p1.startDate > p2.startDate ? p1.startDate : p2.startDate;
-            const overlapEnd = p1.endDate < p2.endDate ? p1.endDate : p2.endDate;
-            periodOverlaps.push({
-              period1: p1,
-              period2: p2,
-              overlapStart,
-              overlapEnd
-            });
-          }
-        }
-      }
-    }
-
-    // 3. Scan db.rules for missing or orphaned entity references
+    // 2. Scan db.rules for missing or orphaned core entity references
     const orphanedRules: { rule: ScheduleRule; reason: string }[] = [];
     const orphanedRuleIds = new Set<string>();
     for (const r of db.rules) {
@@ -136,10 +113,6 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
       if (!teacherMap.has(r.teacherId)) missing.push(`Guru (${r.teacherId})`);
       if (!classMap.has(r.classId)) missing.push(`Kelas (${r.classId})`);
       if (!sessionMap.has(r.sessionId)) missing.push(`Sesi (${r.sessionId})`);
-      if (r.periodIds && r.periodIds.some((pid) => !periodMap.has(pid))) {
-        const invalidPids = r.periodIds.filter((pid) => !periodMap.has(pid));
-        missing.push(`Fase (${invalidPids.join(', ')})`);
-      }
       if (missing.length > 0) {
         conflictingRuleIds.add(r.id);
         orphanedRuleIds.add(r.id);
@@ -150,17 +123,16 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
       }
     }
 
-    const totalIssues = conflicts.length + periodOverlaps.length + orphanedRules.length;
+    const totalIssues = conflicts.length + orphanedRules.length;
 
     return {
       conflicts,
-      periodOverlaps,
       orphanedRules,
       conflictingRuleIds,
       orphanedRuleIds,
       totalIssues
     };
-  }, [db, conflicts, subjectMap, teacherMap, classMap, sessionMap, periodMap]);
+  }, [db.rules, conflicts, subjectMap, teacherMap, classMap, sessionMap]);
 
   // Filtered rules
   const filteredRules = useMemo(() => {
@@ -258,50 +230,67 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
     Sunday: 'Ahad'
   };
 
+  const [pageSize, setPageSize] = useState<number>(15);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterDay, filterClass, filterTeacher, filterSubject, filterPeriod, filterStatus]);
+
+  const totalPagesCount = Math.max(1, Math.ceil(filteredRules.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPagesCount);
+  const pagedRules = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredRules.slice(start, start + pageSize);
+  }, [filteredRules, safeCurrentPage, pageSize]);
+
   return (
     <div className="space-y-4">
       {/* Top Segmented Switcher */}
-      <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          <button
-            type="button"
-            id="subview-btn-rules"
-            onClick={() => setActiveSubView('rules')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-              activeSubView === 'rules'
-                ? 'bg-indigo-600 text-white shadow-2xs'
-                : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/70'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Aturan Jadwal KBM</span>
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-              activeSubView === 'rules' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'
-            }`}>
-              {db.rules.length}
-            </span>
-          </button>
+      {!hideSubViewSwitcher && (
+        <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            <button
+              type="button"
+              id="subview-btn-rules"
+              onClick={() => setActiveSubView('rules')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                activeSubView === 'rules'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/70'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Aturan Jadwal KBM</span>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                activeSubView === 'rules' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {db.rules.length}
+              </span>
+            </button>
 
-          <button
-            type="button"
-            id="subview-btn-kaldik"
-            onClick={() => setActiveSubView('kaldik')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-              activeSubView === 'kaldik'
-                ? 'bg-amber-600 text-white shadow-2xs'
-                : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/70'
-            }`}
-          >
-            <CalendarDays className="w-3.5 h-3.5" />
-            <span>Event Kaldik</span>
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-              activeSubView === 'kaldik' ? 'bg-amber-700 text-white' : 'bg-slate-200 text-slate-700'
-            }`}>
-              {(db.kaldikEvents || []).length}
-            </span>
-          </button>
+            <button
+              type="button"
+              id="subview-btn-kaldik"
+              onClick={() => setActiveSubView('kaldik')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                activeSubView === 'kaldik'
+                  ? 'bg-amber-600 text-white shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/70'
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>Event Kaldik</span>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                activeSubView === 'kaldik' ? 'bg-amber-700 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {(db.kaldikEvents || []).length}
+              </span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* VIEW 1: KALDIK EVENTS DATABASE */}
       {activeSubView === 'kaldik' && (
@@ -324,33 +313,22 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                   <Layers className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900 leading-tight">
-                    Manajemen Aturan Jadwal KBM
+                  <h2 className="text-lg font-bold text-slate-900 leading-tight">
+                    Aturan Jadwal KBM
                   </h2>
-                  <p className="text-[11px] text-slate-500">
-                    Pemetaan jadwal reguler, alokasi guru, kelas, ruang, dan keterikatan fase/periode.
+                  <p className="hidden text-[11px] text-slate-500">
+                    Petakan jadwal hari aktif pekanan atau bulanan, alokasi guru, kelas, ruang.
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 {/* Inline stats pills */}
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-lg">
-                  <span className="text-slate-500 font-medium">Total:</span>
-                  <span className="font-bold text-slate-800">{stats.total}</span>
-                  <span className="text-[10px] text-slate-400">aturan</span>
-                </div>
-
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50/70 border border-emerald-200/70 rounded-lg text-emerald-900">
                   <span className="text-emerald-700 font-medium">Aktif:</span>
-                  <span className="font-bold">{stats.active}</span>
+                  <span className="font-bold">{stats.active}/{stats.total}</span>
                 </div>
-
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200/70 rounded-lg text-slate-700">
-                  <span className="text-slate-500 font-medium">Non-Aktif:</span>
-                  <span className="font-bold">{stats.inactive}</span>
-                </div>
-
+                
                 {stats.withExceptions > 0 && (
                   <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50/70 border border-amber-200/70 rounded-lg text-amber-900">
                     <span className="text-amber-700 font-medium">Khusus:</span>
@@ -386,7 +364,7 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-2xs transition-colors cursor-pointer ml-auto sm:ml-1"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Tambah Aturan</span>
+                    <span>Aturan</span>
                   </button>
                 )}
               </div>
@@ -533,32 +511,23 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
 
           {/* Rules Data Table */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between text-xs">
-              <div className="font-bold text-slate-700 flex items-center gap-2">
-                <span>Daftar Aturan Jadwal Terjadwal</span>
-                <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px]">
-                  {filteredRules.length} dari {db.rules.length} aturan
-                </span>
-              </div>
-            </div>
-
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs border-separate border-spacing-0">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
                   <tr>
-                    <th className="px-3 py-2.5 w-10 text-center">Status</th>
-                    <th className="px-3 py-2.5">Hari &amp; Sesi</th>
-                    <th className="px-3 py-2.5">Mata Pelajaran &amp; Guru</th>
-                    <th className="px-3 py-2.5">Kelas &amp; Ruangan</th>
-                    <th className="px-3 py-2.5">Fase Terkait</th>
-                    <th className="px-3 py-2.5 text-center">Integritas</th>
-                    <th className="px-3 py-2.5 text-right w-20">Aksi</th>
+                    <th className="sticky left-0 z-20 bg-slate-50 px-3 py-2.5 w-[80px] border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] border-b">
+                      Mapel - Guru
+                    </th>
+                    <th className="px-3 py-2.5 min-w-[130px] border-b border-slate-200">Hari &amp; Sesi</th>
+                    <th className="px-3 py-2.5 min-w-[130px] border-b border-slate-200">Kelas &amp; Ruangan</th>
+                    <th className="px-3 py-2.5 min-w-[120px] border-b border-slate-200">Fase Terkait</th>
+                    <th className="px-3 py-2.5 text-right w-20 border-b border-slate-200">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredRules.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
+                      <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
                         <Layers className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                         <p className="font-semibold text-slate-600 text-sm">Tidak ada aturan jadwal yang cocok</p>
                         <p className="text-xs text-slate-400 mt-1">
@@ -575,7 +544,7 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    filteredRules.map((rule) => {
+                    pagedRules.map((rule) => {
                       const subj = subjectMap.get(rule.subjectId);
                       const tch = teacherMap.get(rule.teacherId);
                       const cls = classMap.get(rule.classId);
@@ -590,40 +559,24 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                       return (
                         <tr
                           key={rule.id}
-                          className={`hover:bg-slate-50/80 transition-colors ${
+                          className={`hover:bg-slate-50/80 transition-colors group ${
                             !rule.active ? 'opacity-60 bg-slate-50/40' : ''
                           } ${hasConflict || hasOrphan ? 'bg-amber-50/20' : ''}`}
                         >
-                          {/* Active Checkbox */}
-                          <td className="px-3 py-2.5 text-center">
-                            <input
-                              type="checkbox"
-                              checked={rule.active}
-                              onChange={() => onToggleRuleActive && onToggleRuleActive(rule.id)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
-                              title={rule.active ? 'Aturan Aktif (klik untuk nonaktifkan)' : 'Aturan Non-Aktif (klik untuk aktifkan)'}
-                            />
-                          </td>
-
-                          {/* Hari & Sesi */}
-                          <td className="px-3 py-2.5">
-                            <div className="font-bold text-slate-800">
-                              {days.map((d) => dayNameIdMap[d] || d).join(', ')}
-                            </div>
-                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                              <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span>
-                                {ses?.name || rule.sessionId} ({ses?.startTime} - {ses?.endTime})
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Mapel & Guru */}
-                          <td className="px-3 py-2.5">
+                          {/* Mapel & Guru (Sticky First Column) */}
+                          <td
+                            className={`sticky left-0 z-10 ${
+                              !rule.active
+                                ? 'bg-slate-50'
+                                : hasConflict || hasOrphan
+                                ? 'bg-amber-50/90'
+                                : 'bg-white'
+                            } group-hover:bg-slate-50 transition-colors px-3 py-2.5 min-w-[200px] border-r border-b border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)]`}
+                          >
                             <div className="flex items-center gap-1.5">
                               {subj && (
                                 <span
-                                  className="w-2 h-2 rounded-full shrink-0"
+                                  className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs border border-white"
                                   style={{ backgroundColor: subj.color || '#4f46e5' }}
                                 />
                               )}
@@ -640,7 +593,7 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                               <Users className="w-3 h-3 text-slate-400 shrink-0" />
                               <span>{tch?.name || rule.teacherId}</span>
                               {tch?.panggilan && (
-                                <span className="text-[10px] text-slate-400">
+                                <span className="hidden text-[10px] text-slate-400">
                                   ({tch.panggilan})
                                 </span>
                               )}
@@ -652,8 +605,21 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                             )}
                           </td>
 
+                          {/* Hari & Sesi */}
+                          <td className="px-3 py-2.5 border-b border-slate-100">
+                            <div className="font-bold text-slate-800">
+                              {days.map((d) => dayNameIdMap[d] || d).join(', ')}
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>
+                                {ses?.name || rule.sessionId} ({ses?.startTime} - {ses?.endTime})
+                              </span>
+                            </div>
+                          </td>
+
                           {/* Kelas & Ruang */}
-                          <td className="px-3 py-2.5">
+                          <td className="px-3 py-2.5 border-b border-slate-100">
                             <div className="font-bold text-slate-900">
                               {cls?.name || rule.classId}
                             </div>
@@ -664,7 +630,7 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                           </td>
 
                           {/* Periode */}
-                          <td className="px-3 py-2.5">
+                          <td className="px-3 py-2.5 border-b border-slate-100">
                             {rule.periodIds && rule.periodIds.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
                                 {[...rule.periodIds]
@@ -696,27 +662,32 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                             )}
                           </td>
 
-                          {/* Integritas */}
-                          <td className="px-3 py-2.5 text-center">
-                            {hasConflict || hasOrphan ? (
-                              <span
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
-                                title="Aturan ini mengalami bentrok jadwal atau referensi tidak sinkron"
-                              >
-                                <AlertTriangle className="w-3 h-3 text-amber-700" />
-                                <span>Konflik</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-emerald-700">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                <span>OK</span>
-                              </span>
-                            )}
-                          </td>
-
                           {/* Actions */}
-                          <td className="px-3 py-2.5 text-right">
+                          <td className="px-3 py-2.5 text-right border-b border-slate-100">
                             <div className="flex items-center justify-end gap-1.5">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <input
+                                  type="checkbox"
+                                  checked={rule.active}
+                                  onChange={() => onToggleRuleActive && onToggleRuleActive(rule.id)}
+                                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
+                                  title={rule.active ? 'Aturan Aktif (klik untuk nonaktifkan)' : 'Aturan Non-Aktif (klik untuk aktifkan)'}
+                                />
+                                {hasConflict || hasOrphan ? (
+                                  <span
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                                    title="Aturan ini mengalami bentrok jadwal atau referensi tidak sinkron"
+                                  >
+                                    <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
+                                    <span>Konflik</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9px] font-semibold text-emerald-700">
+                                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                                    <span>OK</span>
+                                  </span>
+                                )}
+                              </div>
                               {onEditRule && (
                                 <button
                                   type="button"
@@ -745,6 +716,74 @@ export const RulesDatabaseTab: React.FC<RulesDatabaseTabProps> = ({
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Pagination & Row Count Limit Bar */}
+            <div className="px-4 py-3 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="text-slate-500">
+                  Menampilkan{' '}
+                  <strong className="text-slate-700">
+                    {filteredRules.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}
+                  </strong>{' '}
+                  –{' '}
+                  <strong className="text-slate-700">
+                    {Math.min(safeCurrentPage * pageSize, filteredRules.length)}
+                  </strong>{' '}
+                  dari <strong className="text-slate-700">{filteredRules.length}</strong> aturan
+                </span>
+
+                <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <span>Baris per halaman:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-white border border-slate-200 rounded px-2 py-0.5 text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                  >
+                    <option value={15}>15</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              {totalPagesCount > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-2xs"
+                    title="Halaman Sebelumnya"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="flex items-center gap-1 px-2 text-xs font-semibold text-slate-700">
+                    <span>Halaman</span>
+                    <span className="bg-white px-2 py-0.5 border border-slate-200 rounded text-indigo-700 font-bold shadow-2xs">
+                      {safeCurrentPage}
+                    </span>
+                    <span className="text-slate-400">dari {totalPagesCount}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage >= totalPagesCount}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPagesCount, p + 1))}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-2xs"
+                    title="Halaman Selanjutnya"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
