@@ -15,6 +15,7 @@ services:
       - BASE44_SANDBOX_HOST_DOMAIN
       - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
     env_file:
+      - ./.env.base44-defaults
       - /run/base44/app.env
     command: ["sh", "-ec", "npm install --no-audit --no-fund && exec node_modules/.bin/tsx server.ts"]
     healthcheck:
