@@ -6,15 +6,12 @@ AI Studio app: "Portal Akademik Idad Jamiiy" — a school schedule/academic port
 ## Dev Command
 `tsx server.ts` — starts Express on port 3000 with Vite in middleware mode (dev). Production build uses `vite build` + `esbuild` for the server.
 
-## Environment Variables
-- `GEMINI_API_KEY` — listed in `.env.example` but **not referenced anywhere in the code**. Not required to boot.
-- `JSONBIN_API_KEY` / `JSONBIN_BIN_ID` — optional remote storage (jsonbin.io). When absent, the app falls back to local `data/database.json`. Not required to boot.
-- `APP_URL` — listed in `.env.example`, not referenced in code. Not required.
-- No external credentials are needed to run the app.
+## Environment Variables (as of the Turso migration in main)
+- `TURSO_METADATA_URL` / `TURSO_METADATA_TOKEN` — Turso Cloud (LibSQL) credentials; **required for all data endpoints** (app boots without them but logs "Turso: OFFLINE" and `/api/database` etc. fail). Delivered via `/run/base44/app.env` (wired in docker-compose `env_file:`). Get them from app.turso.io → database → "Show credentials".
+- `GEMINI_API_KEY` / `APP_URL` — listed in `.env.example`, not referenced in code. Not required.
 
 ## Data Storage
-- `data/database.json` — local JSON file, seeded from `src/data/initialData.ts` on first boot if absent. Must not be empty (0 bytes causes parse warnings); delete it to re-seed.
-- The `data/` directory is bind-mounted from the repo.
+- Turso cloud database `ijma-metadata` (unified schema in `server/db/index.ts`); local SQLite fallback files under `data/` for direct download endpoints (`/api/database/download/*`). The old JSON-file/jsonbin storage was removed.
 
 ## Sandbox Setup (docker-compose.base44.yml)
 - `node:22-slim` base image, repo bind-mounted at `/app`, `node_modules` in a named volume.

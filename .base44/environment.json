@@ -2,5 +2,16 @@
   "previewPort": 3000,
   "healthPath": "/api/health",
   "startCommand": "docker compose -f docker-compose.base44.yml up -d",
-  "secrets": []
+  "secrets": [
+    {
+      "name": "TURSO_METADATA_URL",
+      "description": "Turso Cloud database URL (libsql://...) from app.turso.io 'Show credentials'",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "TURSO_METADATA_TOKEN",
+      "description": "Turso auth token from app.turso.io 'Show credentials'",
+      "requiredAtBoot": false
+    }
+  ]
 }
