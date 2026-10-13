@@ -4,11 +4,13 @@ import {
   Calendar as CalendarIcon,
   AlertTriangle,
   BookOpen,
+  Book,
   Users,
   Database,
   Menu,
   ChevronDown,
   Lock,
+  Save,
   Unlock,
   RefreshCw,
   CheckCircle2,
@@ -17,16 +19,29 @@ import {
   BookmarkCheck,
   CalendarDays,
   Download,
-  Sliders
+  CalendarClock,
+  Sliders,
+  ClipboardCheck
 } from 'lucide-react';
 import { ScheduleConflict } from '../types';
 import { LOGO_BASE64 } from '../assets/logo';
 
-export type ActiveTabType = 'home' | 'studio' | 'kaldik' | 'journal' | 'subjects' | 'teachers' | 'conflicts' | 'database' | 'export-import' | 'rule-manager';
+export type ActiveTabType = 'home' | 'studio' | 'kaldik' | 'presensi' | 'enrollment' | 'journal' | 'subjects' | 'books' | 'teachers' | 'conflicts' | 'database' | 'export-import' | 'rule-manager';
+
+export type DatabaseSubTab =
+  | 'classes'
+  | 'teachers'
+  | 'rooms'
+  | 'subjects'
+  | 'books'
+  | 'sessions'
+  | 'periods'
+  | 'materi';
 
 interface HeaderProps {
   activeTab: ActiveTabType;
   setActiveTab: (tab: ActiveTabType) => void;
+  onSelectDatabaseSubTab?: (subTab: DatabaseSubTab) => void;
   conflicts: ScheduleConflict[];
   showRules?: boolean;
   onToggleRules?: (show: boolean) => void;
@@ -34,39 +49,47 @@ interface HeaderProps {
   isAdmin: boolean;
   onOpenAdminLogin: () => void;
   onAdminLogout: () => void;
+  isDirty: boolean;
+  onSave: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
+  onSelectDatabaseSubTab,
   conflicts,
   showRules,
   onToggleRules,
   isSaving,
   isAdmin,
   onOpenAdminLogin,
-  onAdminLogout
+  onAdminLogout,
+  isDirty,
+  onSave
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  {/* Dropdown menu icons */}
   const getMenuIcon = () => {
     switch (activeTab) {
-      case 'kaldik':
-        return <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-amber-600" />;
+      case 'enrollment':
+        return <Users className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-indigo-600" />;
       case 'journal':
         return <BookmarkCheck className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-amber-600" />;
       case 'subjects':
         return <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-indigo-600" />;
+      case 'books':
+        return <Book className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-indigo-600" />;
       case 'teachers':
         return <Users className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-indigo-600" />;
       case 'database':
         return <Database className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-slate-700" />;
       case 'conflicts':
-        return <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-rose-600" />;
+        return <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-slate-600" />;
       case 'export-import':
-        return <Download className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-indigo-600" />;
+        return <Download className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-slate-600" />;
       case 'rule-manager':
-        return <Sliders className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-indigo-600" />;
+        return <Sliders className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-slate-600" />;
       default:
         return <Menu className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />;
     }
@@ -124,30 +147,25 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Admin status toggle */}
             {isAdmin ? (
-              <div className="flex items-center gap-1 sm:gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold whitespace-nowrap">
+              <button
+                type="button"
+                onClick={onAdminLogout}
+                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition-colors cursor-pointer whitespace-nowrap"
+                title="Keluar dari mode admin"
+              >
                 <Unlock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span className="hidden sm:inline">Admin Aktif</span>
-                <span className="sm:hidden"></span>
-                <button
-                  type="button"
-                  onClick={onAdminLogout}
-                  className="ml-0.5 sm:ml-1 text-[10px] sm:text-[11px] text-emerald-700 hover:text-rose-600 underline font-normal cursor-pointer"
-                  title="Keluar dari mode admin"
-                >
-                  (Kunci)
-                </button>
-              </div>
+              </button>
             ) : (
               <button
                 type="button"
                 id="header-admin-login-btn"
                 onClick={onOpenAdminLogin}
-                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200/90 border border-slate-200 transition-colors cursor-pointer whitespace-nowrap"
+                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-semibold text-slate-700 hover:text-slate-900 transition-colors cursor-pointer whitespace-nowrap"
                 title="Masuk mode admin untuk mengedit aturan"
               >
                 <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                 <span className="hidden sm:inline">Masuk Admin</span>
-                <span className="sm:hidden"></span>
               </button>
             )}
           </div>
@@ -184,9 +202,43 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+              <CalendarClock className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
               <span>
                 {activeTab === 'studio' ? 'Jadwal' : ''}
+              </span>
+            </button>
+
+            {/* Primary Tab: Kaldik (Moved to main header next to Jadwal) */}
+            <button
+              id="tab-btn-kaldik"
+              type="button"
+              onClick={() => setActiveTab('kaldik')}
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'kaldik'
+                  ? 'bg-amber-500 text-white shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+              <span>
+                {activeTab === 'kaldik' ? 'Kaldik' : ''}
+              </span>
+            </button>
+
+            {/* Primary Tab: Presensi (Absensi Harian) */}
+            <button
+              id="tab-btn-presensi"
+              type="button"
+              onClick={() => setActiveTab('presensi')}
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'presensi'
+                  ? 'bg-amber-500 text-white shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <ClipboardCheck className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+              <span>
+                {activeTab === 'presensi' ? 'Presensi' : ''}
               </span>
             </button>
 
@@ -197,27 +249,29 @@ export const Header: React.FC<HeaderProps> = ({
                 id="header-menu-toggle-btn"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors cursor-pointer whitespace-nowrap ${
-                  activeTab !== 'studio' && activeTab !== 'home'
+                  activeTab !== 'studio' && activeTab !== 'home' && activeTab !== 'kaldik'
                     ? 'bg-slate-100 text-slate-900 border-slate-300 font-bold'
                     : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
                 }`}
               >
                 {getMenuIcon()}
                 <span className="truncate max-w-[110px] sm:max-w-none">
-                  {activeTab === 'kaldik'
-                    ? 'Kaldik'
+                  {activeTab === 'enrollment'
+                    ? 'Roster & Penugasan'
                     : activeTab === 'journal'
-                    ? 'Jurnal'
+                    ? 'Silabus'
                     : activeTab === 'subjects'
                     ? 'Pelajaran'
+                    : activeTab === 'books'
+                    ? 'Buku'
                     : activeTab === 'teachers'
-                    ? 'Guru'
+                    ? 'Pengajar'
                     : activeTab === 'database'
-                    ? 'Basis Data'
+                    ? 'Database'
                     : activeTab === 'conflicts'
-                    ? 'Conflict Inspector'
+                    ? 'Conflict'
                     : activeTab === 'export-import'
-                    ? 'Ekspor & Impor'
+                    ? 'Distribution'
                     : activeTab === 'rule-manager'
                     ? 'Rule Manager'
                     : ''}
@@ -232,20 +286,20 @@ export const Header: React.FC<HeaderProps> = ({
                     className="fixed inset-0 z-40"
                     onClick={() => setIsMenuOpen(false)}
                   />
-                  <div className="absolute left-0 mt-1.5 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="absolute left-0 mt-1.5 w-44 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                     <button
                       type="button"
-                      id="menu-item-kaldik"
+                      id="menu-item-enrollment"
                       onClick={() => {
-                        setActiveTab('kaldik');
+                        setActiveTab('enrollment');
                         setIsMenuOpen(false);
                       }}
                       className={`w-full px-3.5 py-2 text-left text-xs font-semibold flex items-center gap-2.5 hover:bg-slate-50 transition-colors cursor-pointer ${
-                        activeTab === 'kaldik' ? 'text-amber-600 bg-amber-50/50' : 'text-slate-700'
+                        activeTab === 'enrollment' ? 'text-indigo-600 bg-indigo-50/50 font-bold' : 'text-slate-700'
                       }`}
                     >
-                      <CalendarDays className="w-4 h-4 text-amber-600" />
-                      <span>Kalender Akademik (Kaldik)</span>
+                      <Users className="w-4 h-4 text-indigo-600" />
+                      <span>Roster &amp; Penugasan</span>
                     </button>
 
                     <button
@@ -260,7 +314,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }`}
                     >
                       <BookmarkCheck className="w-4 h-4 text-amber-600" />
-                      <span>Jurnal &amp; Silabus</span>
+                      <span>Silabus &amp; Progres</span>
                     </button>
 
                     <button
@@ -275,7 +329,22 @@ export const Header: React.FC<HeaderProps> = ({
                       }`}
                     >
                       <BookOpen className="w-4 h-4 text-indigo-600" />
-                      <span>Pelajaran (Mata Kuliah)</span>
+                      <span>Mata Pelajaran</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      id="menu-item-books"
+                      onClick={() => {
+                        setActiveTab('books');
+                        setIsMenuOpen(false);
+                      }}
+                      className={`w-full px-3.5 py-2 text-left text-xs font-semibold flex items-center gap-2.5 hover:bg-slate-50 transition-colors cursor-pointer ${
+                        activeTab === 'books' ? 'text-amber-600 bg-amber-50/50' : 'text-slate-700'
+                      }`}
+                    >
+                      <Book className="w-4 h-4 text-indigo-600" />
+                      <span>Buku</span>
                     </button>
 
                     <button
@@ -290,7 +359,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }`}
                     >
                       <Users className="w-4 h-4 text-indigo-600" />
-                      <span>Guru (Asatidzah)</span>
+                      <span>Pengajar</span>
                     </button>
 
                     <div className="h-px bg-slate-100 my-1" />
@@ -308,19 +377,19 @@ export const Header: React.FC<HeaderProps> = ({
                         }
                       }}
                       className={`w-full px-3.5 py-2 text-left text-xs font-semibold flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer ${
-                        activeTab === 'rule-manager' ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-700'
+                        activeTab === 'rule-manager' ? 'text-black bg-slate-50/50' : 'text-slate-700'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <Sliders className="w-4 h-4 text-indigo-600" />
-                        <span>Rule Manager (Studio)</span>
+                      <div className="flex items-center gap-2">
+                        <Sliders className="w-4 h-4 text-slate-400" />
+                        <span>Rule Manager</span>
                       </div>
-                      {!isAdmin && (
-                        <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded font-normal">
-                          Admin
-                        </span>
-                      )}
+                      {isAdmin
+                        ? <Unlock className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                        : <Lock className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                      }
                     </button>
+
                     <button
                       type="button"
                       id="tab-btn-database"
@@ -332,19 +401,18 @@ export const Header: React.FC<HeaderProps> = ({
                           setActiveTab('database');
                         }
                       }}
-                      className={`w-full px-3.5 py-2 text-left text-xs font-semibold flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer ${
-                        activeTab === 'database' ? 'text-amber-600 bg-amber-50/50' : 'text-slate-700'
+                      className={`w-full px-3.5 py-1.5 text-left text-xs font-semibold flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer ${
+                        activeTab === 'database' ? 'text-black bg-slate-50/50' : 'text-slate-700'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <Database className="w-4 h-4 text-slate-500" />
-                        <span>Basis Data Master</span>
+                      <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4 text-slate-400" />
+                        <span>Database</span>
                       </div>
-                      {!isAdmin && (
-                        <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded font-normal">
-                          Admin
-                        </span>
-                      )}
+                      {isAdmin
+                        ? <Unlock className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                        : <Lock className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                      }
                     </button>
 
                     <button
@@ -359,24 +427,23 @@ export const Header: React.FC<HeaderProps> = ({
                         }
                       }}
                       className={`w-full px-3.5 py-2 text-left text-xs font-semibold flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer ${
-                        activeTab === 'conflicts' ? 'text-rose-600 bg-rose-50/50' : 'text-slate-700'
+                        activeTab === 'conflicts' ? 'text-black bg-slate-50/50' : 'text-slate-700'
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <AlertTriangle className="w-4 h-4 text-rose-500" />
-                        <span>Conflict Inspector</span>
+                        <AlertTriangle className="w-4 h-4 text-slate-400" />
+                        <span>Conflict</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         {conflicts.length > 0 && (
-                          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-600 text-white font-bold">
+                          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-600 text-white font-bold">
                             {conflicts.length}
                           </span>
                         )}
-                        {!isAdmin && (
-                          <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded font-normal">
-                            Admin
-                          </span>
-                        )}
+                        {isAdmin
+                          ? <Unlock className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                          : <Lock className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                        }
                       </div>
                     </button>
 
@@ -392,32 +459,48 @@ export const Header: React.FC<HeaderProps> = ({
                         }
                       }}
                       className={`w-full px-3.5 py-2 text-left text-xs font-semibold flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer ${
-                        activeTab === 'export-import' ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-700'
+                        activeTab === 'export-import' ? 'text-black bg-slate-50/50' : 'text-slate-700'
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <Download className="w-4 h-4 text-indigo-600" />
-                        <span>Ekspor &amp; Impor Data</span>
+                        <Download className="w-4 h-4 text-slate-400" />
+                        <span>Distribusi</span>
                       </div>
-                      {!isAdmin && (
-                        <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded font-normal">
-                          Admin
-                        </span>
-                      )}
+                      {isAdmin
+                        ? <Unlock className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                        : <Lock className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                      }
                     </button>
                   </div>
                 </>
               )}
             </div>
           </div>
-
+          
           {/* Right Status & Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            {isSaving && (
-              <span className="text-[10px] sm:text-[11px] text-slate-400 flex items-center gap-1 font-medium mr-0.5 sm:mr-1 whitespace-nowrap">
-                <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />
-                <span className="hidden sm:inline">Menyimpan...</span>
-              </span>
+            {isAdmin && (
+              <button
+                type="button"
+                id="header-save-btn"
+                onClick={onSave}
+                disabled={isSaving || !isDirty}
+                title={isDirty ? 'Ada perubahan yang belum disimpan ke Turso' : 'Semua perubahan sudah tersimpan'}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-xl border transition-colors whitespace-nowrap ${
+                  isDirty
+                    ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600 cursor-pointer'
+                    : 'bg-slate-100 text-slate-400 border-slate-200 cursor-default'
+                } disabled:opacity-80`}
+              >
+                {isSaving ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : isDirty ? (
+                  <Save className="w-3.5 h-3.5" />
+                ) : (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                )}
+                <span className="hidden sm:inline">{isSaving ? 'Menyimpan...' : isDirty ? 'Simpan Perubahan' : 'Tersimpan'}</span>
+              </button>
             )}
           </div>
         </div>

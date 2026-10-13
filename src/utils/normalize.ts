@@ -11,7 +11,10 @@ import {
   DayOfWeek,
   SyllabusUnit,
   SyllabusScope,
-  KaldikEvent
+  KaldikEvent,
+  Book,
+  Material,
+  SyllabusScopeItem
 } from '../types';
 
 export function normalizeKaldikEvent(raw: any): KaldikEvent {
@@ -79,15 +82,22 @@ export function normalizeRule(raw: any, availablePeriods: Period[] = []): Schedu
       const parsed = JSON.parse(rawPids);
       if (Array.isArray(parsed)) {
         periodIds = parsed.map(String).filter(Boolean);
+      } else if (rawPids.includes(',')) {
+        periodIds = rawPids.split(',').map((p) => p.trim()).filter(Boolean);
       } else if (rawPids.trim()) {
         periodIds = [rawPids.trim()];
       }
     } catch {
-      if (rawPids.trim()) {
+      if (rawPids.includes(',')) {
+        periodIds = rawPids.split(',').map((p) => p.trim()).filter(Boolean);
+      } else if (rawPids.trim()) {
         periodIds = [rawPids.trim()];
       }
     }
   }
+
+  // Deduplicate raw period IDs
+  periodIds = Array.from(new Set(periodIds.filter(Boolean)));
 
   if (availablePeriods.length > 0) {
     const validPeriodIds = new Set(availablePeriods.map(p => p.id));
@@ -110,30 +120,47 @@ export function normalizeRule(raw: any, availablePeriods: Period[] = []): Schedu
     }
   }
 
-  // 2. Resolve Days
+  // 2. Resolve Days (single day and multi-day selections)
   let daysOfWeek: DayOfWeek[] = [];
   const rawDays = raw.daysOfWeek !== undefined ? raw.daysOfWeek : raw.days_of_week;
   if (Array.isArray(rawDays)) {
-    daysOfWeek = rawDays.map(String) as DayOfWeek[];
+    daysOfWeek = rawDays.map(String).filter(Boolean) as DayOfWeek[];
   } else if (typeof rawDays === 'string') {
     try {
       const parsed = JSON.parse(rawDays);
       if (Array.isArray(parsed)) {
-        daysOfWeek = parsed.map(String) as DayOfWeek[];
+        daysOfWeek = parsed.map(String).filter(Boolean) as DayOfWeek[];
+      } else if (rawDays.includes(',')) {
+        daysOfWeek = rawDays.split(',').map((d) => d.trim()).filter(Boolean) as DayOfWeek[];
       } else if (rawDays.trim()) {
         daysOfWeek = [rawDays.trim() as DayOfWeek];
       }
     } catch {
-      if (rawDays.trim()) {
+      if (rawDays.includes(',')) {
+        daysOfWeek = rawDays.split(',').map((d) => d.trim()).filter(Boolean) as DayOfWeek[];
+      } else if (rawDays.trim()) {
         daysOfWeek = [rawDays.trim() as DayOfWeek];
       }
     }
   }
 
-  const singleDay = (raw.dayOfWeek || raw.day_of_week || (daysOfWeek[0] || 'Monday')) as DayOfWeek;
+  // Also check raw.dayOfWeek / raw.day_of_week if daysOfWeek is still empty
+  if (daysOfWeek.length === 0) {
+    const rawSingle = raw.dayOfWeek || raw.day_of_week;
+    if (typeof rawSingle === 'string' && rawSingle.includes(',')) {
+      daysOfWeek = rawSingle.split(',').map((d) => d.trim()).filter(Boolean) as DayOfWeek[];
+    } else if (rawSingle) {
+      daysOfWeek = [String(rawSingle).trim() as DayOfWeek];
+    }
+  }
+
+  const singleDay = (daysOfWeek[0] || raw.dayOfWeek || raw.day_of_week || 'Monday') as DayOfWeek;
   if (daysOfWeek.length === 0) {
     daysOfWeek = [singleDay];
   }
+
+  // Deduplicate days
+  daysOfWeek = Array.from(new Set(daysOfWeek));
 
   // 3. Resolve Exceptions
   const rawExceptions = Array.isArray(raw.exceptions) ? raw.exceptions : [];
@@ -175,7 +202,7 @@ export function normalizeRule(raw: any, availablePeriods: Period[] = []): Schedu
     dateRanges,
     repeatDetail,
     active,
-    exceptions: [],
+    exceptions,
     notes,
     createdAt: raw.createdAt || raw.created_at || undefined,
 
@@ -185,7 +212,7 @@ export function normalizeRule(raw: any, availablePeriods: Period[] = []): Schedu
     teacher_id: teacherId,
     room_id: roomId,
     session_id: sessionId,
-    day_of_week: singleDay,
+    day_of_week: daysOfWeek.length > 1 ? daysOfWeek.join(',') : singleDay,
     days_of_week: daysOfWeek,
     period_ids: periodIds,
     repeat_detail: repeatDetail
@@ -223,27 +250,32 @@ export function normalizeDatabaseState(raw: any): DatabaseState {
   const sessions: Session[] = (Array.isArray(raw.sessions) ? raw.sessions : [])
     .slice()
     .sort((a: any, b: any) => Number(a.order ?? a.sort_order ?? 0) - Number(b.order ?? b.sort_order ?? 0))
-    .map((s: any, idx: number) => ({
-      id: String(s.id || `ses-${idx + 1}`),
-      name: String(s.name || `Session ${idx + 1}`),
-      order: idx + 1,
-      startTime: String(s.startTime || s.start_time || '08:00'),
-      endTime: String(s.endTime || s.end_time || '10:00'),
-      sort_order: idx + 1,
-      start_time: String(s.startTime || s.start_time || '08:00'),
-      end_time: String(s.endTime || s.end_time || '10:00')
-    }));
+    .map((s: any, idx: number) => {
+      const id = String(s.id || `ses-${idx + 1}`);
+      const displayCode = String(s.displayCode || s.display_code || s.code || id);
+      return {
+        id,
+        displayCode,
+        display_code: displayCode,
+        name: String(s.name || `Session ${idx + 1}`),
+        order: idx + 1,
+        startTime: String(s.startTime || s.start_time || '08:00'),
+        endTime: String(s.endTime || s.end_time || '10:00'),
+        sort_order: idx + 1,
+        start_time: String(s.startTime || s.start_time || '08:00'),
+        end_time: String(s.endTime || s.end_time || '10:00')
+      };
+    });
 
   const subjects: Subject[] = (Array.isArray(raw.subjects) ? raw.subjects : []).map((s: any, idx: number) => {
-    const rawLinks = s.links && typeof s.links === 'object' ? s.links : {};
-    const pdf = s.pdfLink || s.pdf_link || rawLinks.pdf || undefined;
-    const shopping = s.shoppingLink || s.shopping_link || rawLinks.shopping || undefined;
-    const shopping2 = s.shoppingLink2 || s.shopping_link_2 || rawLinks.shopping2 || undefined;
-    const site = s.siteLink || s.site_link || rawLinks.site || undefined;
-
+    const id = String(s.id || `sub-${idx + 1}`);
+    const displayCode = String(s.displayCode || s.display_code || s.code || id);
+    const defaultBook = s.default_book || s.defaultBookId || s.default_book_code || undefined;
     return {
-      id: String(s.id || `sub-${idx + 1}`),
-      code: String(s.code || `SUB${idx + 1}`),
+      id,
+      code: displayCode,
+      displayCode,
+      display_code: displayCode,
       name: String(s.name || 'Subject'),
       color: String(s.color || '#4F46E5'),
       department: String(s.department || 'General'),
@@ -251,78 +283,242 @@ export function normalizeDatabaseState(raw: any): DatabaseState {
       defaultRoomId: s.defaultRoomId || s.default_room_id || undefined,
       default_teacher_id: s.defaultTeacherId || s.default_teacher_id || null,
       default_room_id: s.defaultRoomId || s.default_room_id || null,
-      book: s.book ? String(s.book) : undefined,
-      links: {
-        pdf,
-        shopping,
-        shopping2,
-        site,
-        ...rawLinks
-      },
-      pdfLink: pdf,
-      shoppingLink: shopping,
-      shoppingLink2: shopping2,
-      siteLink: site
+      default_book: defaultBook,
+      defaultBookId: defaultBook,
     };
   });
 
-  const classes: ClassEntity[] = (Array.isArray(raw.classes) ? raw.classes : []).map((c: any, idx: number) => ({
-    id: String(c.id || `cls-${idx + 1}`),
-    name: String(c.name || `Class ${idx + 1}`),
-    grade: Number(c.grade ?? 1),
-    section: String(c.section || 'A'),
-    studentCount: Number(c.studentCount ?? c.student_count ?? 30),
-    student_count: Number(c.studentCount ?? c.student_count ?? 30),
-    icon: c.icon ? String(c.icon) : undefined,
-    color: c.color ? String(c.color) : undefined,
-    onlineClassLink: c.onlineClassLink || c.online_class_link || undefined,
-    online_class_link: c.onlineClassLink || c.online_class_link || undefined,
-    defaultRoomId: c.defaultRoomId || c.default_room_id || undefined,
-    default_room_id: c.defaultRoomId || c.default_room_id || null
-  }));
+  const classes: ClassEntity[] = (Array.isArray(raw.classes) ? raw.classes : []).map((c: any, idx: number) => {
+    const id = String(c.id || `cls-${idx + 1}`);
+    const displayCode = String(c.displayCode || c.display_code || c.code || id);
+    return {
+      id,
+      displayCode,
+      display_code: displayCode,
+      name: String(c.name || `Class ${idx + 1}`),
+      grade: Number(c.grade ?? 1),
+      section: String(c.section || 'A'),
+      studentCount: Number(c.studentCount ?? c.student_count ?? 30),
+      student_count: Number(c.studentCount ?? c.student_count ?? 30),
+      icon: c.icon ? String(c.icon) : undefined,
+      color: c.color ? String(c.color) : undefined,
+      onlineClassLink: c.onlineClassLink || c.online_class_link || undefined,
+      online_class_link: c.onlineClassLink || c.online_class_link || undefined,
+      defaultRoomId: c.defaultRoomId || c.default_room_id || undefined,
+      default_room_id: c.defaultRoomId || c.default_room_id || null
+    };
+  });
 
-  const teachers: Teacher[] = (Array.isArray(raw.teachers) ? raw.teachers : []).map((t: any, idx: number) => ({
-    id: String(t.id || `tch-${idx + 1}`),
-    name: String(t.name || 'Teacher'),
-    panggilan: t.panggilan ? String(t.panggilan) : undefined,
-    email: String(t.email || ''),
-    department: String(t.department || 'General'),
-    maxPeriodsPerWeek: Number(t.maxPeriodsPerWeek ?? t.max_periods_per_week ?? 18),
-    max_periods_per_week: Number(t.maxPeriodsPerWeek ?? t.max_periods_per_week ?? 18),
-    color: t.color ? String(t.color) : undefined
-  }));
+  const teachers: Teacher[] = (Array.isArray(raw.teachers) ? raw.teachers : []).map((t: any, idx: number) => {
+    const id = String(t.id || `tch-${idx + 1}`);
+    const displayCode = String(t.displayCode || t.display_code || t.code || t.panggilan || id);
+    return {
+      id,
+      displayCode,
+      display_code: displayCode,
+      name: String(t.name || 'Teacher'),
+      panggilan: t.panggilan ? String(t.panggilan) : undefined,
+      email: String(t.email || ''),
+      department: String(t.department || 'General'),
+      maxPeriodsPerWeek: Number(t.maxPeriodsPerWeek ?? t.max_periods_per_week ?? 18),
+      max_periods_per_week: Number(t.maxPeriodsPerWeek ?? t.max_periods_per_week ?? 18),
+      color: t.color ? String(t.color) : undefined
+    };
+  });
 
-  const rooms: Room[] = (Array.isArray(raw.rooms) ? raw.rooms : []).map((r: any, idx: number) => ({
-    id: String(r.id || `rm-${idx + 1}`),
-    name: String(r.name || 'Room'),
-    building: String(r.building || 'Main Campus'),
-    capacity: Number(r.capacity ?? 30),
-    type: r.type || 'Standard'
-  }));
+  const rooms: Room[] = (Array.isArray(raw.rooms) ? raw.rooms : []).map((r: any, idx: number) => {
+    const id = String(r.id || `rm-${idx + 1}`);
+    const displayCode = String(r.displayCode || r.display_code || r.code || id);
+    return {
+      id,
+      displayCode,
+      display_code: displayCode,
+      name: String(r.name || 'Room'),
+      building: String(r.building || 'Main Campus'),
+      capacity: Number(r.capacity ?? 30),
+      type: r.type || 'Standard'
+    };
+  });
 
-  const rules: ScheduleRule[] = (Array.isArray(raw.rules) ? raw.rules : []).map((r: any) =>
-    normalizeRule(r, periods)
-  );
+  // Lookup maps for normalizing foreign keys from code to canonical id
+  const subjectCodeToIdMap = new Map<string, string>();
+  for (const s of subjects) {
+    if (s.id) subjectCodeToIdMap.set(s.id.toLowerCase(), s.id);
+    if (s.code) subjectCodeToIdMap.set(s.code.toLowerCase(), s.id);
+  }
 
-  const syllabusUnits: SyllabusUnit[] = (Array.isArray(raw.syllabusUnits) ? raw.syllabusUnits : []).map((u: any, idx: number) => ({
-    id: String(u.id || `unit-${u.subject_id || u.subjectId || 'sub'}-${idx + 1}`),
-    subject_id: String(u.subject_id || u.subjectId || ''),
-    order: Number(u.order ?? (idx + 1)),
-    title: String(u.title || `Materi ${idx + 1}`),
-    page_start: u.page_start ?? u.pageStart ?? '',
-    page_end: u.page_end ?? u.pageEnd ?? '',
-    part: u.part ?? '',
-    no: Number(u.no ?? (idx + 1)),
-    eno: Number(u.eno ?? (u.no ?? (idx + 1)))
-  }));
+  const classCodeToIdMap = new Map<string, string>();
+  for (const c of classes) {
+    if (c.id) classCodeToIdMap.set(c.id.toLowerCase(), c.id);
+    if ((c as any).code) classCodeToIdMap.set(String((c as any).code).toLowerCase(), c.id);
+  }
 
-  const syllabusScopes: SyllabusScope[] = (Array.isArray(raw.syllabusScopes) ? raw.syllabusScopes : []).map((s: any, idx: number) => ({
-    id: String(s.id || `scope-${idx + 1}`),
-    subject_id: String(s.subject_id || s.subjectId || ''),
-    class_section_id: String(s.class_section_id || s.classSectionId || s.classId || ''),
-    start_unit_id: String(s.start_unit_id || s.startUnitId || ''),
-    end_unit_id: String(s.end_unit_id || s.endUnitId || '')
-  }));
+  const rules: ScheduleRule[] = (Array.isArray(raw.rules) ? raw.rules : []).map((r: any) => {
+    const norm = normalizeRule(r, periods);
+    const rawSubj = String(norm.subjectId || '').trim();
+    if (rawSubj && subjectCodeToIdMap.has(rawSubj.toLowerCase())) {
+      const canonicalSubjId = subjectCodeToIdMap.get(rawSubj.toLowerCase())!;
+      norm.subjectId = canonicalSubjId;
+      norm.subject_id = canonicalSubjId;
+    }
+    const rawCls = String(norm.classId || '').trim();
+    if (rawCls && classCodeToIdMap.has(rawCls.toLowerCase())) {
+      const canonicalClsId = classCodeToIdMap.get(rawCls.toLowerCase())!;
+      norm.classId = canonicalClsId;
+      norm.class_id = canonicalClsId;
+    }
+    return norm;
+  });
+
+  // syllabusUnits is what the UI edits, so it must win over the stale materials copy
+  const rawMaterials = Array.isArray(raw.syllabusUnits)
+    ? raw.syllabusUnits
+    : (Array.isArray(raw.materials) ? raw.materials : []);
+  const syllabusUnits: SyllabusUnit[] = rawMaterials.map((u: any, idx: number) => {
+    const rawSubId = u.subject_id ?? u.subjectId ?? undefined;
+    const resolvedSubId = rawSubId && subjectCodeToIdMap.has(String(rawSubId).toLowerCase())
+      ? subjectCodeToIdMap.get(String(rawSubId).toLowerCase())
+      : rawSubId;
+
+    const bookId = String(u.bookId || u.book_code || (resolvedSubId ? `bk-${resolvedSubId}` : 'bk-gen'));
+    const chapterBookId = u.chapterBookId || u.chapter_book_id || (u.chapterNumber ? `chap-${bookId}-${u.chapterNumber}` : undefined);
+    return {
+      id: String(u.id || `mat-${idx + 1}`),
+      subject_id: resolvedSubId,
+      bookId,
+      chapterBookId,
+      chapterNumber: u.chapterNumber ?? u.chapter_num ?? undefined,
+      order: Number(u.order ?? (idx + 1)),
+      title: String(u.title || `Materi ${idx + 1}`),
+      page_start: u.page_start ?? u.pageStart ?? '',
+      page_end: u.page_end ?? u.pageEnd ?? '',
+      part: u.part ?? 1,
+      no: Number(u.no ?? (idx + 1)),
+      eno: Number(u.eno ?? (u.no ?? (idx + 1)))
+    };
+  });
+
+  const materials: Material[] = rawMaterials.map((u: any, idx: number) => {
+    const rawSubId = u.subject_id ?? u.subjectId ?? undefined;
+    const resolvedSubId = rawSubId && subjectCodeToIdMap.has(String(rawSubId).toLowerCase())
+      ? subjectCodeToIdMap.get(String(rawSubId).toLowerCase())
+      : rawSubId;
+
+    const bookCode = String(u.bookId || u.book_code || (resolvedSubId ? `bk-${resolvedSubId}` : 'bk-gen'));
+    const chapterBookId = u.chapterBookId || u.chapter_book_id || (u.chapterNumber ? `chap-${bookCode}-${u.chapterNumber}` : undefined);
+    return {
+      id: String(u.id || `mat-${idx + 1}`),
+      bookId: bookCode,
+      chapterBookId,
+      chapterNumber: u.chapterNumber ?? u.chapter_num ?? undefined,
+      order: Number(u.order ?? (idx + 1)),
+      title: String(u.title || `Materi ${idx + 1}`),
+      pageStart: u.pageStart ?? u.page_start ?? '',
+      pageEnd: u.pageEnd ?? u.page_end ?? '',
+      part: u.part ?? 1,
+      no: Number(u.no ?? (idx + 1)),
+      eno: Number(u.eno ?? (u.no ?? (idx + 1))),
+      chapter_book_id: chapterBookId,
+      page_start: u.page_start ?? u.pageStart ?? '',
+      page_end: u.page_end ?? u.pageEnd ?? ''
+    };
+  });
+
+  const books: Book[] = (Array.isArray(raw.books) ? raw.books : []).map((b: any, idx: number) => {
+    const id = String(b.id || b.code || `bk-${idx + 1}`);
+    const displayCode = String(b.displayCode || b.display_code || b.altTitle || b.alt_title || b.code || id);
+    const rawSubId = b.defaultSubjectId || b.default_subject_code || '';
+    const resolvedSubId = rawSubId && subjectCodeToIdMap.has(String(rawSubId).toLowerCase())
+      ? subjectCodeToIdMap.get(String(rawSubId).toLowerCase())!
+      : rawSubId;
+
+    const chapters = Array.isArray(b.chapters) ? b.chapters : [];
+    let calcTotalPages = Number(b.totalPages ?? b.total_pages ?? 0);
+    if (chapters.length > 0) {
+      const sumChapterPages = chapters.reduce((sum: number, ch: any) => sum + (Number(ch.pageEnd ?? ch.page_end) || 0), 0);
+      if (sumChapterPages > 0) {
+        calcTotalPages = sumChapterPages;
+      }
+    }
+    const calcTotalChapters = chapters.length > 0 ? chapters.length : Number(b.totalChapters ?? b.total_chapters ?? 0);
+
+    return {
+      id,
+      displayCode,
+      display_code: displayCode,
+      title: String(b.title || `Buku ${idx + 1}`),
+      altTitle: b.altTitle || b.alt_title || '',
+      author: b.author || '',
+      publisher: b.publisher || '',
+      edition: b.edition || '',
+      totalChapters: calcTotalChapters,
+      totalPages: calcTotalPages,
+      defaultSubjectId: resolvedSubId,
+      defaultTeacherId: b.defaultTeacherId || b.default_teacher_code || '',
+      links: Array.isArray(b.links) ? b.links : [],
+      chapters
+    };
+  });
+
+  const syllabusScopes: SyllabusScope[] = (Array.isArray(raw.syllabusScopes) ? raw.syllabusScopes : []).map((s: any, idx: number) => {
+    const rawItems = Array.isArray(s.items) ? s.items : [];
+    const items: SyllabusScopeItem[] = rawItems.map((it: any, itIdx: number) => {
+      const bookId = String(it.bookId || it.book_code || s.book_id || (s.book_ids && s.book_ids[0]) || '');
+      const chapterBookId = it.chapterBookId || it.chapter_book_id || (it.chapterNumber ? `chap-${bookId}-${it.chapterNumber}` : undefined);
+      return {
+        id: String(it.id || `${s.id || 'scope'}-item-${itIdx + 1}`),
+        scopeId: String(it.scopeId || s.id || `scope-${idx + 1}`),
+        bookId,
+        chapterBookId,
+        chapterNumber: it.chapterNumber ?? it.chapter_num ?? undefined,
+        startMaterialId: String(it.startMaterialId || it.start_material_code || ''),
+        endMaterialId: String(it.endMaterialId || it.end_material_code || ''),
+        sortOrder: Number(it.sortOrder ?? it.sort_order ?? (itIdx + 1)),
+        note: it.note || ''
+      };
+    });
+
+    const itemBooks = Array.from(new Set(items.map((it) => it.bookId).filter(Boolean)));
+    const bookIds = Array.isArray(s.book_ids) && s.book_ids.length > 0
+      ? s.book_ids
+      : (s.book_id ? [s.book_id] : (itemBooks.length > 0 ? itemBooks : []));
+
+    let adjustment = s.adjustment || undefined;
+    let userNotes = s.notes || '';
+    if (!adjustment && typeof userNotes === 'string' && userNotes.startsWith('{') && userNotes.includes('_adjustment')) {
+      try {
+        const parsed = JSON.parse(userNotes);
+        if (parsed && parsed._adjustment) {
+          adjustment = parsed._adjustment;
+          userNotes = parsed.userNote || '';
+        }
+      } catch {}
+    }
+
+    const rawSubjId = String(s.subject_id || s.subjectId || '');
+    const resolvedSubjId = rawSubjId && subjectCodeToIdMap.has(rawSubjId.toLowerCase())
+      ? subjectCodeToIdMap.get(rawSubjId.toLowerCase())!
+      : rawSubjId;
+
+    const rawClassId = String(s.class_section_id || s.classSectionId || s.classId || '');
+    const resolvedClassId = rawClassId && classCodeToIdMap.has(rawClassId.toLowerCase())
+      ? classCodeToIdMap.get(rawClassId.toLowerCase())!
+      : rawClassId;
+
+    return {
+      id: String(s.id || `scope-${idx + 1}`),
+      subject_id: resolvedSubjId,
+      class_section_id: resolvedClassId,
+      name: s.name || '',
+      notes: userNotes,
+      adjustment,
+      book_ids: bookIds,
+      book_id: bookIds[0] || s.book_id || s.bookId || (items[0]?.bookId || ''),
+      start_unit_id: String(s.start_unit_id || s.startUnitId || (items[0]?.startMaterialId || '')),
+      end_unit_id: String(s.end_unit_id || s.endUnitId || (items[items.length - 1]?.endMaterialId || items[0]?.endMaterialId || '')),
+      items
+    };
+  });
 
   const kaldikEvents: KaldikEvent[] = (Array.isArray(raw.kaldikEvents) ? raw.kaldikEvents : []).map(
     normalizeKaldikEvent
@@ -337,7 +533,11 @@ export function normalizeDatabaseState(raw: any): DatabaseState {
     periods,
     rules,
     kaldikEvents,
+    books,
+    materials,
     syllabusUnits,
-    syllabusScopes
+    syllabusScopes,
+    students: Array.isArray(raw.students) ? raw.students : undefined,
+    enrollments: Array.isArray(raw.enrollments) ? raw.enrollments : undefined,
   };
 }

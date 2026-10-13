@@ -1,15 +1,17 @@
 import { ActiveTabType } from '../components/Header';
 import { ViewerRole } from '../components/JournalView';
+import { ScheduleViewMode } from '../components/CalendarView';
 import { DatabaseState } from '../types';
 
 export interface ParsedRoute {
   tab?: ActiveTabType;
   role?: ViewerRole;
   id?: string;
+  view?: ScheduleViewMode;
 }
 
 /**
- * Parse URL search parameters for tab, role, and entity id
+ * Parse URL search parameters for tab, role, entity id, and schedule view mode
  */
 export function parseUrlRoute(db?: DatabaseState): ParsedRoute {
   try {
@@ -22,8 +24,10 @@ export function parseUrlRoute(db?: DatabaseState): ParsedRoute {
       if (lower === 'home' || lower === 'beranda') tab = 'home';
       else if (lower === 'studio' || lower === 'jadwal' || lower === 'schedule') tab = 'studio';
       else if (lower === 'kaldik') tab = 'kaldik';
-      else if (lower === 'journal' || lower === 'jurnal') tab = 'journal';
+      else if (lower === 'presensi' || lower === 'attendance' || lower === 'absen') tab = 'presensi';
+      else if (lower === 'journal' || lower === 'jurnal' || lower === 'silabus') tab = 'journal';
       else if (lower === 'subjects' || lower === 'pelajaran') tab = 'subjects';
+      else if (lower === 'books' || lower === 'kitab' || lower === 'buku') tab = 'books';
       else if (lower === 'teachers' || lower === 'guru') tab = 'teachers';
       else if (lower === 'conflicts' || lower === 'konflik') tab = 'conflicts';
       else if (lower === 'database' || lower === 'data') tab = 'database';
@@ -58,32 +62,54 @@ export function parseUrlRoute(db?: DatabaseState): ParsedRoute {
       }
     }
 
-    return { tab, role, id };
+    let view: ScheduleViewMode | undefined = undefined;
+    const rawView = params.get('view') || params.get('mode');
+    if (rawView) {
+      const lower = rawView.toLowerCase();
+      if (lower === 'audit' || lower === 'semua' || lower === 'all' || lower === 'admin_audit') {
+        view = ScheduleViewMode.ADMIN_AUDIT;
+      } else if (lower === 'teacher' || lower === 'guru' || lower === 'teacher_week') {
+        view = ScheduleViewMode.TEACHER_WEEK;
+      } else if (lower === 'student' || lower === 'murid' || lower === 'kelas' || lower === 'class' || lower === 'student_week') {
+        view = ScheduleViewMode.STUDENT_WEEK;
+      }
+    }
+
+    return { tab, role, id, view };
   } catch {
     return {};
   }
 }
 
 /**
- * Update URL search parameters according to the current tab and viewer token
+ * Update URL search parameters according to the current tab, viewer token, and schedule view mode
  */
 export function updateUrlRoute(
   tab: ActiveTabType,
   role: ViewerRole,
   id: string,
-  mode: 'push' | 'replace' = 'replace'
+  mode: 'push' | 'replace' = 'replace',
+  view?: ScheduleViewMode
 ) {
   try {
     const url = new URL(window.location.href);
 
     if (tab === 'home') {
       url.searchParams.set('tab', 'home');
+      url.searchParams.delete('view');
       if (role && id) {
         url.searchParams.set('role', role);
         url.searchParams.set('id', id);
       }
     } else if (tab === 'studio') {
       url.searchParams.set('tab', 'jadwal');
+      if (view === ScheduleViewMode.ADMIN_AUDIT) {
+        url.searchParams.set('view', 'semua');
+      } else if (view === ScheduleViewMode.TEACHER_WEEK) {
+        url.searchParams.set('view', 'guru');
+      } else if (view === ScheduleViewMode.STUDENT_WEEK) {
+        url.searchParams.set('view', 'murid');
+      }
       if (role && id) {
         url.searchParams.set('role', role);
         url.searchParams.set('id', id);
@@ -96,6 +122,7 @@ export function updateUrlRoute(
       url.searchParams.delete('teacher');
       url.searchParams.delete('kelas');
       url.searchParams.delete('guru');
+      url.searchParams.delete('view');
     }
 
     const nextUrl = url.pathname + url.search + url.hash;
@@ -103,9 +130,9 @@ export function updateUrlRoute(
 
     if (nextUrl !== currentUrl) {
       if (mode === 'push') {
-        window.history.pushState({ tab, role, id }, '', nextUrl);
+        window.history.pushState({ tab, role, id, view }, '', nextUrl);
       } else {
-        window.history.replaceState({ tab, role, id }, '', nextUrl);
+        window.history.replaceState({ tab, role, id, view }, '', nextUrl);
       }
     }
   } catch (e) {

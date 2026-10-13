@@ -1,0 +1,6 @@
+{
+  "summary": "Rencana revisi unifikasi manajemen sesi ke halaman Jurnal:\n1. Evaluasi arsitektur penyimpanan capaian di attnd_meeting vs syllabus_scopes.\n2. Fitur pembatalan sesi instan (ikon X) dengan penomoran urut otomatis (auto re-numbering).\n3. Form pencatatan materi super minimal di AttendanceModal (hanya field Materi dan Halaman, default ke target).\n4. Pemindahan tombol deep-link Penyesuaian Silabus ke kartu utama sesi di Jurnal.\n5. Integrasi opsi pemangkasan bab dan penyesuaian laju makro ke dalam SyllabusScopeModal.\n6. Restrukturisasi file: PresensiView -> JournalView, JournalView lama -> SyllabusView (read-only).",
+  "updatedAt": "2026-10-12T16:09:37.086797336Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

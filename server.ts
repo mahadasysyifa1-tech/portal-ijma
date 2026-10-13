@@ -2,120 +2,65 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import zlib from 'zlib';
 import { createServer as createViteServer } from 'vite';
-import { initialData } from './src/data/initialData.ts';
+import {
+  ensureDataSeeded,
+  getDatabaseState,
+  saveDatabaseState,
+  resetDatabaseState,
+  tursoClient,
+  METADATA_SCHEMA_SQL,
+  KALDIK_SCHEMA_SQL,
+  UNIFIED_SCHEMA_SQL,
+} from './server/db/index.ts';
+import {
+  getOrCreateDayMeetings,
+  getMonthAttendanceSummary,
+  getMeetingRollCall,
+  saveMeetingRollCall,
+  getEnrollmentOverview,
+  quickAssignStudentToClass,
+  quickUnassignStudentFromClass,
+  upsertStudent,
+  deleteStudentRecord,
+  saveAllEnrollmentData,
+  generateAllRuleMeetings,
+} from './server/db/attendance.ts';
 
 const app = express();
 const PORT = 3000;
 app.use(express.json({ limit: '10mb' }));
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'database.json');
-
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-// Initialize database.json if not present
-if (!fs.existsSync(DATA_FILE)) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
-}
-
-// Persistent remote storage (jsonbin.io) — survives redeploys/restarts.
-// Falls back to the local file (NOT persistent on Cloud Run) if unconfigured.
-const JSONBIN_API_KEY = process.env.JSONBIN_API_KEY;
-const JSONBIN_BIN_ID = process.env.JSONBIN_BIN_ID;
-const JSONBIN_URL = JSONBIN_BIN_ID ? `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}` : '';
-const REMOTE_ENABLED = Boolean(JSONBIN_API_KEY && JSONBIN_BIN_ID);
-
-async function readData() {
-  if (REMOTE_ENABLED) {
-    try {
-      const res = await fetch(`${JSONBIN_URL}/latest`, {
-        headers: { 'X-Master-Key': JSONBIN_API_KEY as string },
-      });
-      if (res.ok) {
-        const json = await res.json();
-        const record = json?.record;
-        if (record) {
-          if (record._compressed && record.data) {
-            try {
-              const raw = zlib.inflateSync(Buffer.from(record.data, 'base64')).toString('utf-8');
-              const parsed = JSON.parse(raw);
-              if (parsed && Array.isArray(parsed.subjects)) {
-                return parsed;
-              }
-            } catch (decompErr) {
-              console.warn('Failed to decompress jsonbin record, using local fallback:', decompErr);
-            }
-          } else if (Array.isArray(record.subjects)) {
-            return record;
-          }
-        }
-      } else {
-        console.warn('jsonbin read returned non-200 status:', res.status);
-      }
-    } catch (err) {
-      console.warn('Warning reading from jsonbin (falling back to local file):', err);
-    }
-  }
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const content = fs.readFileSync(DATA_FILE, 'utf-8');
-      return JSON.parse(content);
-    }
-  } catch (err) {
-    console.warn('Error reading database.json:', err);
-  }
-  return initialData;
-}
-
-async function writeData(data: any) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (err) {
-    console.warn('Error writing database.json:', err);
-  }
-  if (REMOTE_ENABLED) {
-    try {
-      const rawString = JSON.stringify(data);
-      // jsonbin.io free tier restricts records to <= 100KB.
-      // Deflate + base64 shrinks ~150KB database to ~25KB.
-      let payload: any;
-      if (Buffer.byteLength(rawString, 'utf-8') > 40 * 1024) {
-        const deflated = zlib.deflateSync(Buffer.from(rawString, 'utf-8')).toString('base64');
-        payload = { _compressed: true, data: deflated };
-      } else {
-        payload = data;
-      }
-
-      const res = await fetch(JSONBIN_URL, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Master-Key': JSONBIN_API_KEY as string,
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        console.warn('jsonbin write status:', res.status, errText);
-      }
-    } catch (err) {
-      console.warn('Warning writing to jsonbin:', err);
-    }
-  }
-}
-
-// API Routes
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Seed & verify database on startup
+ensureDataSeeded().catch((err) => {
+  console.error('Database initialization error:', err);
 });
 
+// Health Check
+app.get('/api/health', (req, res) => {
+  const isConfigured = Boolean(
+    (process.env.TURSO_METADATA_URL || process.env.TURSO_DATABASE_URL) &&
+    (process.env.TURSO_METADATA_TOKEN || process.env.TURSO_AUTH_TOKEN)
+  );
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    engine: 'turso-libsql-unified',
+    tursoConfigured: isConfigured,
+    tursoMetadataConfigured: isConfigured,
+    database: 'ijma-metadata (unified)',
+  });
+});
+
+// Primary data endpoints for Portal Akademik (Turso Cloud SQL + SQLite fallback)
 app.get('/api/database', async (req, res) => {
-  const data = await readData();
-  res.json(data);
+  try {
+    const data = await getDatabaseState();
+    res.json(data);
+  } catch (err: any) {
+    console.error('Database read error:', err);
+    res.status(500).json({ error: 'Failed to read database', details: err?.message });
+  }
 });
 
 app.post('/api/database/save', async (req, res) => {
@@ -123,19 +68,264 @@ app.post('/api/database/save', async (req, res) => {
   if (!newData || !newData.subjects) {
     return res.status(400).json({ error: 'Invalid database structure' });
   }
-  await writeData(newData);
-  res.json({ success: true, message: 'Database saved successfully' });
+  try {
+    await saveDatabaseState(newData);
+
+    // Read back from Turso so the client can confirm what was actually stored
+    const saved = await getDatabaseState();
+    const counts = {
+      subjects: saved.subjects.length,
+      classes: saved.classes.length,
+      teachers: saved.teachers.length,
+      rooms: saved.rooms.length,
+      sessions: saved.sessions.length,
+      periods: saved.periods.length,
+      rules: saved.rules.length,
+      kaldikEvents: (saved.kaldikEvents || []).length,
+      books: (saved.books || []).length,
+      syllabusUnits: (saved.syllabusUnits || []).length,
+      syllabusScopes: (saved.syllabusScopes || []).length,
+    };
+    res.json({ success: true, savedAt: new Date().toISOString(), counts });
+  } catch (err: any) {
+    console.error('Database write error:', err);
+    res.status(500).json({ error: 'Failed to write to database', details: err?.message });
+  }
+});
+app.post('/api/database/reset', async (req, res) => {
+  try {
+    await resetDatabaseState();
+    const data = await getDatabaseState();
+    res.json({ success: true, message: 'Databases reset to initial template', data });
+  } catch (err: any) {
+    console.error('Database reset error:', err);
+    res.status(500).json({ error: 'Failed to reset database', details: err?.message });
+  }
 });
 
-app.post('/api/database/reset', async (req, res) => {
-  await writeData(initialData);
-  res.json({ success: true, message: 'Database reset to default template', data: initialData });
+// ============================================================================
+// Attendance (Presensi Terpadu) Endpoints
+// ============================================================================
+app.get('/api/attendance/month-summary', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  try {
+    const now = new Date();
+    const year = Number(req.query.year) || now.getFullYear();
+    const month = Number(req.query.month) || now.getMonth() + 1;
+    const summary = await getMonthAttendanceSummary(tursoClient, year, month);
+    res.json(summary);
+  } catch (err: any) {
+    console.error('Failed to get attendance month summary:', err);
+    res.status(500).json({ error: 'Failed to get month summary', details: err?.message });
+  }
+});
+
+app.get('/api/attendance/day-sessions', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  const dateStr = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+  try {
+    const state = await getDatabaseState();
+    const meetings = await getOrCreateDayMeetings(tursoClient, dateStr, state);
+    res.json(meetings);
+  } catch (err: any) {
+    console.error('Failed to get day meetings:', err);
+    res.status(500).json({ error: 'Failed to get day meetings', details: err?.message });
+  }
+});
+
+app.get('/api/attendance/meetings/:meetingId/logs', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  const { meetingId } = req.params;
+  try {
+    const rollCallData = await getMeetingRollCall(tursoClient, meetingId);
+    if (!rollCallData) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+    res.json(rollCallData);
+  } catch (err: any) {
+    console.error('Failed to get meeting roll-call:', err);
+    res.status(500).json({ error: 'Failed to get meeting roll-call', details: err?.message });
+  }
+});
+
+app.post('/api/attendance/meetings/:meetingId/logs', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  const { meetingId } = req.params;
+  const { teacherLog, studentLogs, meetingNotes } = req.body;
+  try {
+    await saveMeetingRollCall(tursoClient, meetingId, teacherLog, studentLogs || [], meetingNotes);
+    res.json({ success: true, savedAt: new Date().toISOString(), meetingId });
+  } catch (err: any) {
+    console.error('Failed to save meeting roll-call:', err);
+    res.status(500).json({ error: 'Failed to save meeting roll-call', details: err?.message });
+  }
+});
+
+app.post('/api/attendance/generate-all-meetings', async (_req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  try {
+    const state = await getDatabaseState();
+    const result = await generateAllRuleMeetings(tursoClient, state);
+    res.json({
+      success: true,
+      ...result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('Failed to generate meetings:', err);
+    res.status(500).json({ error: 'Failed to generate meetings', details: err?.message });
+  }
+});
+
+// ----------------------------------------------------------------------------
+// Enrollment & Roster APIs
+// ----------------------------------------------------------------------------
+app.get('/api/enrollment/overview', async (_req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  try {
+    const state = await getDatabaseState();
+    const data = await getEnrollmentOverview(tursoClient, state);
+    res.json(data);
+  } catch (err: any) {
+    console.error('Failed to get enrollment overview:', err);
+    res.status(500).json({ error: 'Failed to get enrollment overview', details: err?.message });
+  }
+});
+
+app.post('/api/enrollment/quick-assign', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  const { studentId, classId } = req.body;
+  if (!studentId || !classId) {
+    return res.status(400).json({ error: 'studentId and classId are required' });
+  }
+  try {
+    await quickAssignStudentToClass(tursoClient, studentId, classId);
+    res.json({ success: true, studentId, classId });
+  } catch (err: any) {
+    console.error('Failed to assign student to class:', err);
+    res.status(500).json({ error: 'Failed to assign student to class', details: err?.message });
+  }
+});
+
+app.post('/api/enrollment/quick-unassign', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  const { studentId, classId } = req.body;
+  if (!studentId || !classId) {
+    return res.status(400).json({ error: 'studentId and classId are required' });
+  }
+  try {
+    await quickUnassignStudentFromClass(tursoClient, studentId, classId);
+    res.json({ success: true, studentId, classId });
+  } catch (err: any) {
+    console.error('Failed to unassign student from class:', err);
+    res.status(500).json({ error: 'Failed to unassign student from class', details: err?.message });
+  }
+});
+
+app.post('/api/enrollment/students', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  const { student, classId } = req.body;
+  if (!student || !student.name) {
+    return res.status(400).json({ error: 'Student name is required' });
+  }
+  try {
+    await upsertStudent(tursoClient, student, classId);
+    res.json({ success: true, student });
+  } catch (err: any) {
+    console.error('Failed to upsert student:', err);
+    res.status(500).json({ error: 'Failed to upsert student', details: err?.message });
+  }
+});
+
+app.delete('/api/enrollment/students/:id', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  const { id } = req.params;
+  try {
+    await deleteStudentRecord(tursoClient, id);
+    res.json({ success: true, id });
+  } catch (err: any) {
+    console.error('Failed to delete student:', err);
+    res.status(500).json({ error: 'Failed to delete student', details: err?.message });
+  }
+});
+
+app.post('/api/enrollment/save-all', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ error: 'Turso database is offline' });
+  }
+  const { students, enrollments } = req.body;
+  try {
+    await saveAllEnrollmentData(tursoClient, students, enrollments);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Failed to save enrollments:', err);
+    res.status(500).json({ error: 'Failed to save enrollments', details: err?.message });
+  }
+});
+
+// Endpoints for exporting/downloading the SQLite files directly
+app.get('/api/database/download/metadata', (req, res) => {
+  const filePath = path.join(process.cwd(), 'data', 'metadata.db');
+  if (fs.existsSync(filePath)) {
+    res.download(filePath, 'metadata.db');
+  } else {
+    res.status(404).send('metadata.db not found');
+  }
+});
+
+app.get('/api/database/download/kaldik', (req, res) => {
+  const filePath = path.join(process.cwd(), 'data', 'kaldik.db');
+  if (fs.existsSync(filePath)) {
+    res.download(filePath, 'kaldik.db');
+  } else {
+    res.status(404).send('kaldik.db not found');
+  }
+});
+
+app.get('/api/database/schema', (req, res) => {
+  res.type('text/plain').send(UNIFIED_SCHEMA_SQL);
+});
+
+app.get('/api/database/schema/unified', (req, res) => {
+  res.type('text/plain').send(UNIFIED_SCHEMA_SQL);
+});
+
+app.get('/api/database/schema/metadata', (req, res) => {
+  res.type('text/plain').send(METADATA_SCHEMA_SQL);
+});
+
+app.get('/api/database/schema/kaldik', (req, res) => {
+  res.type('text/plain').send(KALDIK_SCHEMA_SQL);
 });
 
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR !== 'true',
+        watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -147,9 +337,25 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`School Schedule Server running on http://localhost:${PORT}`);
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`School Schedule Server (SQLite WAL) running on http://localhost:${PORT}`);
   });
+
+  server.on('error', (err: any) => {
+    console.error('HTTP Server error:', err);
+  });
+
+  const handleShutdown = () => {
+    server.close(() => {
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGTERM', handleShutdown);
+  process.on('SIGINT', handleShutdown);
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Fatal server start error:', err);
+  process.exit(1);
+});

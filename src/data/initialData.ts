@@ -4,25 +4,24 @@ export const initialData: DatabaseState = {
   subjects: [
     {
       id: 'sub-math',
-      code: 'MATH101',
       name: 'Advanced Mathematics',
       color: '#3B82F6', // Blue
       department: 'Mathematics',
       defaultTeacherId: 'tch-chen',
-      defaultRoomId: 'rm-101'
+      defaultRoomId: 'rm-101',
+      default_book: 'bk-sub-math'
     },
     {
       id: 'sub-physics',
-      code: 'PHY201',
       name: 'General Physics & Lab',
       color: '#8B5CF6', // Purple
       department: 'Science',
       defaultTeacherId: 'tch-elena',
-      defaultRoomId: 'rm-lab-sci'
+      defaultRoomId: 'rm-lab-sci',
+      default_book: 'bk-sub-physics'
     },
     {
       id: 'sub-english',
-      code: 'ENG101',
       name: 'English Literature',
       color: '#10B981', // Emerald
       department: 'Humanities',
@@ -31,7 +30,6 @@ export const initialData: DatabaseState = {
     },
     {
       id: 'sub-chemistry',
-      code: 'CHEM101',
       name: 'Organic Chemistry',
       color: '#F59E0B', // Amber
       department: 'Science',
@@ -40,7 +38,6 @@ export const initialData: DatabaseState = {
     },
     {
       id: 'sub-cs',
-      code: 'CS102',
       name: 'Computer Programming',
       color: '#06B6D4', // Cyan
       department: 'Technology',
@@ -49,7 +46,6 @@ export const initialData: DatabaseState = {
     },
     {
       id: 'sub-history',
-      code: 'HIST201',
       name: 'World History',
       color: '#EC4899', // Pink
       department: 'Humanities',
@@ -197,44 +193,46 @@ export const initialData: DatabaseState = {
   ],
   syllabusUnits: [
     // Mathematics (sub-math)
-    { id: 'unit-math-1', subject_id: 'sub-math', order: 1, title: 'Pengantar Aljabar & Persamaan Linear', page_start: 1, page_end: 14, part: 1, no: 1, eno: 12 },
-    { id: 'unit-math-2', subject_id: 'sub-math', order: 2, title: 'Sistem Pertidaksamaan Linear Dua Variabel', page_start: 15, page_end: 28, part: 1, no: 13, eno: 25 },
-    { id: 'unit-math-3', subject_id: 'sub-math', order: 3, title: 'Matriks & Operasi Determinan Matriks', page_start: 29, page_end: 44, part: 1, no: 26, eno: 40 },
-    { id: 'unit-math-4', subject_id: 'sub-math', order: 4, title: 'Vektor Dimensi Dua dan Dimensi Tiga', page_start: 45, page_end: 60, part: 1, no: 41, eno: 55 },
-    { id: 'unit-math-5', subject_id: 'sub-math', order: 5, title: 'Fungsi Kuadrat, Titik Puncak & Parabola', page_start: 61, page_end: 78, part: 2, no: 56, eno: 72 },
-    { id: 'unit-math-6', subject_id: 'sub-math', order: 6, title: 'Trigonometri Dasar & Aturan Sinus Cosinus', page_start: 79, page_end: 98, part: 2, no: 73, eno: 90 },
-    { id: 'unit-math-7', subject_id: 'sub-math', order: 7, title: 'Limit Fungsi Aljabar & Asimtot', page_start: 99, page_end: 118, part: 2, no: 91, eno: 108 },
-    { id: 'unit-math-8', subject_id: 'sub-math', order: 8, title: 'Turunan Fungsi Aljabar & Garis Singgung', page_start: 119, page_end: 138, part: 2, no: 109, eno: 128 },
-    { id: 'unit-math-9', subject_id: 'sub-math', order: 9, title: 'Aplikasi Turunan: Nilai Maksimum dan Minimum', page_start: 139, page_end: 156, part: 3, no: 129, eno: 145 },
-    { id: 'unit-math-10', subject_id: 'sub-math', order: 10, title: 'Integral Tak Tentu & Teknik Substitusi', page_start: 157, page_end: 176, part: 3, no: 146, eno: 165 },
-    { id: 'unit-math-11', subject_id: 'sub-math', order: 11, title: 'Integral Tentu & Kalkulasi Luas Daerah', page_start: 177, page_end: 198, part: 3, no: 166, eno: 185 },
-    { id: 'unit-math-12', subject_id: 'sub-math', order: 12, title: 'Evaluasi & Review Portofolio Akhir Semester', page_start: 199, page_end: 215, part: 3, no: 186, eno: 200 },
+    { id: 'unit-math-1', bookId: 'bk-sub-math', chapterBookId: 'chap-math-1', order: 1, title: 'Pengantar Aljabar & Persamaan Linear', page_start: 1, page_end: 14, part: 1, no: 1, eno: 12 },
+    { id: 'unit-math-2', bookId: 'bk-sub-math', chapterBookId: 'chap-math-1', order: 2, title: 'Sistem Pertidaksamaan Linear Dua Variabel', page_start: 15, page_end: 28, part: 1, no: 13, eno: 25 },
+    { id: 'unit-math-3', bookId: 'bk-sub-math', chapterBookId: 'chap-math-2', order: 3, title: 'Matriks & Operasi Determinan Matriks', page_start: 29, page_end: 44, part: 1, no: 26, eno: 40 },
+    { id: 'unit-math-4', bookId: 'bk-sub-math', chapterBookId: 'chap-math-2', order: 4, title: 'Vektor Dimensi Dua dan Dimensi Tiga', page_start: 45, page_end: 60, part: 1, no: 41, eno: 55 },
+    { id: 'unit-math-5', bookId: 'bk-sub-math', chapterBookId: 'chap-math-3', order: 5, title: 'Fungsi Kuadrat, Titik Puncak & Parabola', page_start: 61, page_end: 78, part: 2, no: 56, eno: 72 },
+    { id: 'unit-math-6', bookId: 'bk-sub-math', chapterBookId: 'chap-math-3', order: 6, title: 'Trigonometri Dasar & Aturan Sinus Cosinus', page_start: 79, page_end: 98, part: 2, no: 73, eno: 90 },
+    { id: 'unit-math-7', bookId: 'bk-sub-math', chapterBookId: 'chap-math-4', order: 7, title: 'Limit Fungsi Aljabar & Asimtot', page_start: 99, page_end: 118, part: 2, no: 91, eno: 108 },
+    { id: 'unit-math-8', bookId: 'bk-sub-math', chapterBookId: 'chap-math-4', order: 8, title: 'Turunan Fungsi Aljabar & Garis Singgung', page_start: 119, page_end: 138, part: 2, no: 109, eno: 128 },
+    { id: 'unit-math-9', bookId: 'bk-sub-math', chapterBookId: 'chap-math-5', order: 9, title: 'Aplikasi Turunan: Nilai Maksimum dan Minimum', page_start: 139, page_end: 156, part: 3, no: 129, eno: 145 },
+    { id: 'unit-math-10', bookId: 'bk-sub-math', chapterBookId: 'chap-math-5', order: 10, title: 'Integral Tak Tentu & Teknik Substitusi', page_start: 157, page_end: 176, part: 3, no: 146, eno: 165 },
+    { id: 'unit-math-11', bookId: 'bk-sub-math', chapterBookId: 'chap-math-6', order: 11, title: 'Integral Tentu & Kalkulasi Luas Daerah', page_start: 177, page_end: 198, part: 3, no: 166, eno: 185 },
+    { id: 'unit-math-12', bookId: 'bk-sub-math', chapterBookId: 'chap-math-6', order: 12, title: 'Evaluasi & Review Portofolio Akhir Semester', page_start: 199, page_end: 215, part: 3, no: 186, eno: 200 },
 
     // Physics (sub-physics)
-    { id: 'unit-phy-1', subject_id: 'sub-physics', order: 1, title: 'Besaran, Satuan & Analisis Vektor Fisika', page_start: 1, page_end: 18, part: 1, no: 1, eno: 15 },
-    { id: 'unit-phy-2', subject_id: 'sub-physics', order: 2, title: 'Kinematika Gerak Lurus Beraturan (GLB & GLBB)', page_start: 19, page_end: 38, part: 1, no: 16, eno: 32 },
-    { id: 'unit-phy-3', subject_id: 'sub-physics', order: 3, title: 'Hukum Newton tentang Gerak & Gaya Gesek', page_start: 39, page_end: 58, part: 1, no: 33, eno: 50 },
-    { id: 'unit-phy-4', subject_id: 'sub-physics', order: 4, title: 'Usaha, Energi Kinetik, & Kekekalan Energi Mekanik', page_start: 59, page_end: 80, part: 2, no: 51, eno: 70 },
-    { id: 'unit-phy-5', subject_id: 'sub-physics', order: 5, title: 'Momentum, Impuls, & Tumbukan', page_start: 81, page_end: 102, part: 2, no: 71, eno: 90 },
-    { id: 'unit-phy-6', subject_id: 'sub-physics', order: 6, title: 'Praktikum Laboratorium: Dinamika Gerak & Ayunan', page_start: 103, page_end: 120, part: 2, no: 91, eno: 110 },
+    { id: 'unit-phy-1', bookId: 'bk-sub-physics', chapterBookId: 'chap-phy-1', order: 1, title: 'Besaran, Satuan & Analisis Vektor Fisika', page_start: 1, page_end: 18, part: 1, no: 1, eno: 15 },
+    { id: 'unit-phy-2', bookId: 'bk-sub-physics', chapterBookId: 'chap-phy-1', order: 2, title: 'Kinematika Gerak Lurus Beraturan (GLB & GLBB)', page_start: 19, page_end: 38, part: 1, no: 16, eno: 32 },
+    { id: 'unit-phy-3', bookId: 'bk-sub-physics', chapterBookId: 'chap-phy-2', order: 3, title: 'Hukum Newton tentang Gerak & Gaya Gesek', page_start: 39, page_end: 58, part: 1, no: 33, eno: 50 },
+    { id: 'unit-phy-4', bookId: 'bk-sub-physics', chapterBookId: 'chap-phy-2', order: 4, title: 'Usaha, Energi Kinetik, & Kekekalan Energi Mekanik', page_start: 59, page_end: 80, part: 2, no: 51, eno: 70 },
+    { id: 'unit-phy-5', bookId: 'bk-sub-physics', chapterBookId: 'chap-phy-3', order: 5, title: 'Momentum, Impuls, & Tumbukan', page_start: 81, page_end: 102, part: 2, no: 71, eno: 90 },
+    { id: 'unit-phy-6', bookId: 'bk-sub-physics', chapterBookId: 'chap-phy-3', order: 6, title: 'Praktikum Laboratorium: Dinamika Gerak & Ayunan', page_start: 103, page_end: 120, part: 2, no: 91, eno: 110 },
 
     // English (sub-english)
-    { id: 'unit-eng-1', subject_id: 'sub-english', order: 1, title: 'Introduction to Academic Essay Writing & Structure', page_start: 1, page_end: 20, part: 1, no: 1, eno: 18 },
-    { id: 'unit-eng-2', subject_id: 'sub-english', order: 2, title: 'Critical Reading: Identifying Thesis & Arguments', page_start: 21, page_end: 42, part: 1, no: 19, eno: 36 },
-    { id: 'unit-eng-3', subject_id: 'sub-english', order: 3, title: 'Advanced Grammar: Complex Sentences & Clauses', page_start: 43, page_end: 65, part: 1, no: 37, eno: 55 },
-    { id: 'unit-eng-4', subject_id: 'sub-english', order: 4, title: 'Literary Analysis of Classic Poetry & Prose', page_start: 66, page_end: 90, part: 2, no: 56, eno: 75 },
+    { id: 'unit-eng-1', bookId: 'bk-sub-english', chapterBookId: 'chap-eng-1', order: 1, title: 'Introduction to Academic Essay Writing & Structure', page_start: 1, page_end: 20, part: 1, no: 1, eno: 18 },
+    { id: 'unit-eng-2', bookId: 'bk-sub-english', chapterBookId: 'chap-eng-1', order: 2, title: 'Critical Reading: Identifying Thesis & Arguments', page_start: 21, page_end: 42, part: 1, no: 19, eno: 36 },
+    { id: 'unit-eng-3', bookId: 'bk-sub-english', chapterBookId: 'chap-eng-2', order: 3, title: 'Advanced Grammar: Complex Sentences & Clauses', page_start: 43, page_end: 65, part: 1, no: 37, eno: 55 },
+    { id: 'unit-eng-4', bookId: 'bk-sub-english', chapterBookId: 'chap-eng-2', order: 4, title: 'Literary Analysis of Classic Poetry & Prose', page_start: 66, page_end: 90, part: 2, no: 56, eno: 75 },
 
     // Computer Science (sub-cs)
-    { id: 'unit-cs-1', subject_id: 'sub-cs', order: 1, title: 'Algoritma Pemrograman & Flowchart Logic', page_start: 1, page_end: 22, part: 1, no: 1, eno: 20 },
-    { id: 'unit-cs-2', subject_id: 'sub-cs', order: 2, title: 'Struktur Data Dasar: Array, List, & Object Dictionary', page_start: 23, page_end: 48, part: 1, no: 21, eno: 42 },
-    { id: 'unit-cs-3', subject_id: 'sub-cs', order: 3, title: 'Fungsi, Rekursi, & Modularitas Kode', page_start: 49, page_end: 75, part: 2, no: 43, eno: 68 },
-    { id: 'unit-cs-4', subject_id: 'sub-cs', order: 4, title: 'Proyek Mini Aplikasi & Debugging Code', page_start: 76, page_end: 105, part: 2, no: 69, eno: 95 }
+    { id: 'unit-cs-1', bookId: 'bk-sub-cs', chapterBookId: 'chap-cs-1', order: 1, title: 'Algoritma Pemrograman & Flowchart Logic', page_start: 1, page_end: 22, part: 1, no: 1, eno: 20 },
+    { id: 'unit-cs-2', bookId: 'bk-sub-cs', chapterBookId: 'chap-cs-1', order: 2, title: 'Struktur Data Dasar: Array, List, & Object Dictionary', page_start: 23, page_end: 48, part: 1, no: 21, eno: 42 },
+    { id: 'unit-cs-3', bookId: 'bk-sub-cs', chapterBookId: 'chap-cs-2', order: 3, title: 'Fungsi, Rekursi, & Modularitas Kode', page_start: 49, page_end: 75, part: 2, no: 43, eno: 68 },
+    { id: 'unit-cs-4', bookId: 'bk-sub-cs', chapterBookId: 'chap-cs-2', order: 4, title: 'Proyek Mini Aplikasi & Debugging Code', page_start: 76, page_end: 105, part: 2, no: 69, eno: 95 }
   ],
   syllabusScopes: [
     {
       id: 'scope-math-10a',
       subject_id: 'sub-math',
       class_section_id: 'cls-10a',
+      book_ids: ['bk-sub-math'],
+      book_id: 'bk-sub-math',
       start_unit_id: 'unit-math-1',
       end_unit_id: 'unit-math-8'
     }
@@ -312,6 +310,50 @@ export const initialData: DatabaseState = {
       endDate: '2026-10-22',
       color: '#EF4444',
       description: 'Upacara hari santri & libur kegiatan formal KBM'
+    }
+  ],
+  books: [
+    {
+      id: 'bk-sub-math',
+      title: 'Advanced Mathematics for High School',
+      altTitle: 'Kalkulus & Aljabar Lanjut',
+      author: 'Prof. S. Chen',
+      publisher: 'Cambridge University Press',
+      edition: '3rd Edition',
+      totalChapters: 12,
+      totalPages: 480,
+      defaultSubjectId: 'sub-math',
+      defaultTeacherId: 'tch-chen',
+      links: [
+        { bookId: 'bk-sub-math', type: 'pdf', label: 'E-Book PDF', url: 'https://example.com/math101.pdf' }
+      ]
+    },
+    {
+      id: 'bk-sub-physics',
+      title: 'Fundamentals of Modern Physics & Laboratory',
+      altTitle: 'Fisika Eksperimental',
+      author: 'Dr. Elena Rostova',
+      publisher: 'Oxford Academic',
+      edition: 'Global Edition',
+      totalChapters: 10,
+      totalPages: 420,
+      defaultSubjectId: 'sub-physics',
+      defaultTeacherId: 'tch-elena',
+      links: []
+    },
+    {
+      id: 'bk-sub-54462',
+      title: 'العربية للناشئين',
+      altTitle: 'Tadrib Lughawi',
+      author: 'Penyusun Akademik',
+      publisher: 'Maktabah Arabiyyah',
+      edition: 'Jilid 1-6',
+      totalChapters: 6,
+      totalPages: 350,
+      defaultSubjectId: 'sub-arabic',
+      links: [
+        { bookId: 'bk-sub-54462', type: 'pdf', label: 'Download PDF Kitab', url: 'https://archive.org/details/Alarabiyah_linnasyiiyin/' }
+      ]
     }
   ]
 };

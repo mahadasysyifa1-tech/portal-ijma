@@ -19,11 +19,16 @@ import {
   DoorOpen,
   Pencil,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  BookmarkCheck,
+  ExternalLink,
+  ArrowRight,
+  Book
 } from 'lucide-react';
 import { DatabaseState, KaldikEvent, DayOfWeek, ResolvedSlot, Period } from '../../types';
 import { computeResolvedSlots } from '../../utils/scheduleEngine';
 import { isDateInRanges } from '../../utils/dateNormalizer';
+import { computePacingProjection, formatUnitDisplay, get_units_for_session, getUnitsForSubject } from '../../utils/pacingEngine';
 import { KaldikEventModal } from './KaldikEventModal';
 import { FixedBlockSubGrid, FixedBlockHeaderGrid } from '../schedule/FixedBlockSubGrid';
 
@@ -32,6 +37,8 @@ interface KaldikViewProps {
   onUpdateDb: React.Dispatch<React.SetStateAction<DatabaseState>>;
   isAdmin?: boolean;
   onOpenAdminLogin?: () => void;
+  onNavigateToJournal?: (subjectId?: string, classId?: string, date?: string) => void;
+  onNavigateToBooks?: (bookId?: string) => void;
 }
 
 const INDONESIAN_MONTHS = [
@@ -65,7 +72,9 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
   db,
   onUpdateDb,
   isAdmin = true,
-  onOpenAdminLogin
+  onOpenAdminLogin,
+  onNavigateToJournal,
+  onNavigateToBooks
 }) => {
   // Calendar View State: Year and Month (0-11)
   // Default to September 2026 to match initial sample data, or current date if in range
@@ -104,6 +113,7 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
   const roomMap = useMemo(() => new Map(db.rooms.map((r) => [r.id, r])), [db.rooms]);
   const classMap = useMemo(() => new Map(db.classes.map((c) => [c.id, c])), [db.classes]);
   const sessionMap = useMemo(() => new Map(db.sessions.map((s) => [s.id, s])), [db.sessions]);
+  const bookMap = useMemo(() => new Map((db.books || []).map((b) => [b.id, b])), [db.books]);
   const sortedSessions = useMemo(() => [...db.sessions].sort((a, b) => a.order - b.order), [db.sessions]);
   const sortedClasses = useMemo(() => {
     return [...db.classes].sort((a, b) => (a.grade || 0) - (b.grade || 0) || a.name.localeCompare(b.name));
@@ -407,6 +417,19 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
       return clsA.localeCompare(clsB);
     });
   }, [selectedDayData, sessionMap, classMap]);
+
+  // Precompute pacing projection for each subject + class present in the selected day
+  const dayPacingMap = useMemo(() => {
+    if (!selectedDayData) return new Map<string, ReturnType<typeof computePacingProjection>>();
+    const map = new Map<string, ReturnType<typeof computePacingProjection>>();
+    for (const slot of selectedDayData.classSlots) {
+      const key = `${slot.subjectId}_${slot.classId}`;
+      if (!map.has(key)) {
+        map.set(key, computePacingProjection(db, slot.subjectId, slot.classId));
+      }
+    }
+    return map;
+  }, [db, selectedDayData]);
 
   const formattedSelectedDate = useMemo(() => {
     if (!selectedDayData) return '';
@@ -1091,12 +1114,43 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
                     const room = roomMap.get(slot.roomId);
                     const session = sessionMap.get(slot.sessionId);
 
+                    const projection = dayPacingMap.get(`${slot.subjectId}_${slot.classId}`) || [];
+                    const matchedSession = projection.find(
+                      (p) =>
+                        p.session.date === selectedDayData.dateStr &&
+                        (p.session.sessionId === slot.sessionId || p.session.ruleId === slot.ruleId)
+                    );
+                    const scheduledUnits = matchedSession
+                      ? matchedSession.units
+                      : get_units_for_session(db, slot.subjectId, slot.classId, `${selectedDayData.dateStr}_${slot.sessionId}_${slot.ruleId}`);
+                    const meetingIndex = matchedSession?.session.meetingIndex;
+                    const hasSyllabusForSubject = getUnitsForSubject(db, slot.subjectId).length > 0;
+
+                    // First material & last material calculation
+                    const firstUnit = scheduledUnits[0];
+                    const lastUnit = scheduledUnits[scheduledUnits.length - 1];
+
+                    const firstPage = firstUnit?.page_start ?? firstUnit?.page_end;
+                    const lastPage = lastUnit?.page_end ?? lastUnit?.page_start;
+
+                    const pageRangeLabel =
+                      firstPage !== undefined && lastPage !== undefined
+                        ? firstPage !== lastPage
+                          ? `hal. ${firstPage}-${lastPage}:`
+                          : `hal. ${firstPage}:`
+                        : firstPage !== undefined
+                        ? `hal. ${firstPage}:`
+                        : lastPage !== undefined
+                        ? `hal. ${lastPage}:`
+                        : '';
+
                     return (
                       <div
                         key={`${slot.ruleId}-${slot.sessionId}-${idx}`}
-                        className="p-3 bg-white hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                        className="p-3 bg-white hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs"
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                          {/* Time & Session */}
                           <div className="w-20 shrink-0">
                             <span className="text-[10px] font-bold text-amber-800 block">
                               {session?.name || `Sesi ${idx + 1}`}
@@ -1106,38 +1160,163 @@ export const KaldikView: React.FC<KaldikViewProps> = ({
                             </span>
                           </div>
 
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
+                          {/* Content: Meta on line 1, Simplified 1-line syllabus on line 2 */}
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span
                                 className="w-2 h-2 rounded-full shrink-0"
                                 style={{ backgroundColor: subject?.color || '#F59E0B' }}
                               />
-                              <span className="font-bold text-slate-900">
+                              <span className="font-bold text-slate-900 truncate">
                                 {subject?.name || 'Mata Pelajaran'}
                               </span>
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
                                 {cls?.name || 'Kelas'}
                               </span>
-                            </div>
-
-                            <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                              <span className="flex items-center gap-1">
-                                <Users className="w-3 h-3 text-slate-400" />
+                              {meetingIndex !== undefined && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-900 border border-amber-200 shrink-0">
+                                  Pertemuan #{meetingIndex}
+                                </span>
+                              )}
+                              <span className="text-slate-300 hidden sm:inline">•</span>
+                              <span className="flex items-center gap-1 text-[11px] text-slate-500 truncate">
+                                <Users className="w-3 h-3 text-slate-400 shrink-0" />
                                 <span>{teacher?.panggilan || teacher?.name || 'Guru'}</span>
                               </span>
-                              <span className="flex items-center gap-1">
-                                <DoorOpen className="w-3 h-3 text-slate-400" />
+                              <span className="flex items-center gap-1 text-[11px] text-slate-500 truncate">
+                                <DoorOpen className="w-3 h-3 text-slate-400 shrink-0" />
                                 <span>{room?.name || 'Ruang'}</span>
                               </span>
+                            </div>
+
+                            {/* 1-line syllabus: bookmarkcheck icon | {hal. ${first page of first material}-${last page of last material}:} | badge: first material | dash | badge: last material */}
+                            <div className="flex items-center gap-1.5 text-[11px] min-w-0 flex-wrap">
+                              <BookmarkCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              {scheduledUnits.length > 0 ? (
+                                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                  {/* Book & Vol/Ch Badges */}
+                                  {(() => {
+                                    const bId = firstUnit?.bookId || subject?.default_book || subject?.defaultBookId || subject?.primary_book_code;
+                                    const book = bId ? bookMap.get(bId) : null;
+                                    if (!book) return null;
+                                    const chapters = book.chapters || [];
+                                    const matchedChapter = chapters.find(
+                                      (ch) => (firstUnit?.chapterBookId && ch.id === firstUnit.chapterBookId) ||
+                                              (firstUnit?.part && ch.chapterNumber === firstUnit.part)
+                                    );
+                                    let volChText = '';
+                                    if (matchedChapter) {
+                                      const chPages = matchedChapter.pageEnd || 0;
+                                      const chTitle = matchedChapter.title || `Jilid ${matchedChapter.chapterNumber}`;
+                                      volChText = chPages > 0 ? `${chTitle}: ${chPages} hal` : chTitle;
+                                    } else {
+                                      const totalJilid = chapters.length > 0 ? chapters.length : (book.totalChapters || 0);
+                                      const cumulativePages = chapters.length > 0
+                                        ? chapters.reduce((sum, ch) => sum + (Number(ch.pageEnd) || 0), 0)
+                                        : (book.totalPages || 0);
+                                      volChText = totalJilid > 0
+                                        ? `${totalJilid} Jilid: ${cumulativePages.toLocaleString('id-ID')} hal`
+                                        : `${cumulativePages.toLocaleString('id-ID')} hal`;
+                                    }
+
+                                    return (
+                                      <>
+                                        {/* (book) */}
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onNavigateToBooks?.(book.id);
+                                          }}
+                                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer shrink-0 shadow-2xs"
+                                          title={`Kitab: ${book.title}${book.altTitle ? ` (${book.altTitle})` : ''} • Klik untuk melihat info kitab`}
+                                        >
+                                          <Book className="w-3 h-3 text-indigo-600 shrink-0" />
+                                          <span className="truncate max-w-[120px] sm:max-w-[150px]">
+                                            {book.displayCode || book.altTitle || book.title}
+                                          </span>
+                                        </button>
+                                        {/* (vol/ch: xxxx pages) */}
+                                        {volChText && (
+                                          <span
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-slate-100 text-slate-700 border border-slate-200 shrink-0 shadow-2xs"
+                                            title="Volume/Bab & Jumlah Halaman"
+                                          >
+                                            {volChText}
+                                          </span>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
+
+                                  {pageRangeLabel && (
+                                    <span className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold text-amber-900 shrink-0">
+                                      {firstUnit?.isPartialStart && (
+                                        <ArrowRight
+                                          className="w-3 h-3 text-amber-600 shrink-0"
+                                          title={`Lanjutan dari sesi sebelumnya (mulai hal. ${firstUnit.page_start} dari ${firstUnit.raw_page_start}–${firstUnit.raw_page_end})`}
+                                        />
+                                      )}
+                                      <span>{pageRangeLabel}</span>
+                                      {lastUnit?.isPartialEnd && (
+                                        <ArrowRight
+                                          className="w-3 h-3 text-amber-600 shrink-0"
+                                          title={`Bersambung ke sesi berikutnya (sampai hal. ${lastUnit?.page_end} dari ${lastUnit?.raw_page_start}–${lastUnit?.raw_page_end})`}
+                                        />
+                                      )}
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-950 border border-amber-200/80 truncate max-w-[200px] sm:max-w-[260px] ${
+                                      onNavigateToJournal ? 'cursor-pointer hover:bg-amber-100 hover:border-amber-300' : ''
+                                    }`}
+                                    title={`${formatUnitDisplay(firstUnit)}${onNavigateToJournal ? ' (Klik untuk buka Jurnal)' : ''}`}
+                                    onClick={() => {
+                                      if (onNavigateToJournal) {
+                                        onNavigateToJournal(slot.subjectId, slot.classId, selectedDayData.dateStr);
+                                      }
+                                    }}
+                                  >
+                                    {formatUnitDisplay(firstUnit)}
+                                  </span>
+                                  {scheduledUnits.length > 1 && (
+                                    <>
+                                      <span className="text-slate-400 shrink-0 font-bold">-</span>
+                                      <span
+                                        className={`px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-950 border border-amber-200/80 truncate max-w-[200px] sm:max-w-[260px] ${
+                                          onNavigateToJournal ? 'cursor-pointer hover:bg-amber-100 hover:border-amber-300' : ''
+                                        }`}
+                                        title={`${formatUnitDisplay(lastUnit)}${onNavigateToJournal ? ' (Klik untuk buka Jurnal)' : ''}`}
+                                        onClick={() => {
+                                          if (onNavigateToJournal) {
+                                            onNavigateToJournal(slot.subjectId, slot.classId, selectedDayData.dateStr);
+                                          }
+                                        }}
+                                      >
+                                        {formatUnitDisplay(lastUnit)}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic text-[11px] truncate">
+                                  {hasSyllabusForSubject
+                                    ? 'Sesi Praktikum / Pembahasan Mandiri'
+                                    : 'Belum ada data silabus'}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
 
-                        {slot.hasException && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 self-start sm:self-center">
-                            Pengecualian Periode
-                          </span>
-                        )}
+                        {/* Badges */}
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          {slot.hasException && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              Pengecualian Periode
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
