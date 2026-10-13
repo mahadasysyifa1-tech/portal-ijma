@@ -17,8 +17,8 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-// Initialize database.json if not present
-if (!fs.existsSync(DATA_FILE)) {
+// Initialize database.json if not present or empty
+if (!fs.existsSync(DATA_FILE) || fs.statSync(DATA_FILE).size === 0) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
 }
 
