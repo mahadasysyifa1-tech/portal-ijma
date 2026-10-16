@@ -6,6 +6,8 @@ import {
   MapPin,
   User,
   Layers,
+  Wrench,
+  ExternalLink,
   ChevronRight,
   ArrowLeft,
   CheckCircle2,
@@ -14,12 +16,20 @@ import {
   SlidersHorizontal,
   Search,
   School,
-  BookmarkCheck
+  BookmarkCheck,
+  ArrowRight,
+  Scissors,
+  RotateCcw,
+  Check,
+  X,
+  AlertCircle,
+  Book
 } from 'lucide-react';
 import {
   DatabaseState,
   SyllabusUnit,
   SyllabusScope,
+  SyllabusPacingAdjustment,
   ScheduledSessionOccurrence,
   Teacher,
   Room
@@ -28,7 +38,8 @@ import {
   computePacingProjection,
   get_units_for_session,
   formatUnitDisplay,
-  getScopedUnits
+  getScopedUnits,
+  getUnitsForSubject
 } from '../utils/pacingEngine';
 
 export type ViewerRole = 'student' | 'teacher' | 'admin';
@@ -48,6 +59,7 @@ interface JournalViewProps {
   onClearInitialDeepLink?: () => void;
   onOpenAdminLogin: () => void;
   onNavigateToRuleManager?: () => void;
+  onNavigateToBooks?: (bookId?: string) => void;
 }
 
 export const JournalView: React.FC<JournalViewProps> = ({
@@ -63,7 +75,8 @@ export const JournalView: React.FC<JournalViewProps> = ({
   highlightDate,
   onClearInitialDeepLink,
   onOpenAdminLogin,
-  onNavigateToRuleManager
+  onNavigateToRuleManager,
+  onNavigateToBooks
 }) => {
   // Navigation states
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(initialSubjectId || null);
@@ -80,6 +93,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
 
   // References for scrolling
   const todayRowRef = useRef<HTMLDivElement | null>(null);
+  const currentSessionRef = useRef<HTMLDivElement | null>(null);
 
   // Today string YYYY-MM-DD
   const todayStr = useMemo(() => {
@@ -198,6 +212,27 @@ export const JournalView: React.FC<JournalViewProps> = ({
     return db.teachers.find((t) => t.id === filterTeacherId) || db.teachers[0];
   }, [db.teachers, filterTeacherId]);
 
+  const currentSubject = db.subjects.find((s) => s.id === selectedSubjectId);
+  const currentClass = db.classes.find((c) => c.id === selectedClassId);
+  const teacherMap = new Map<string, Teacher>((db.teachers || []).map((t) => [t.id, t]));
+  const roomMap = new Map<string, Room>((db.rooms || []).map((r) => [r.id, r]));
+  const bookMap = useMemo(() => new Map<string, any>((db.books || []).map((b) => [b.id, b])), [db.books]);
+
+  // Scope status
+  const existingScope = useMemo(() => {
+    if (!selectedSubjectId || !selectedClassId) return null;
+    return (db.syllabusScopes || []).find((s) => {
+      const matchSubj =
+        s.subject_id === selectedSubjectId ||
+        (currentSubject && (s.subject_id === currentSubject.id || s.subject_id === currentSubject.code));
+      const matchClass =
+        s.class_section_id === selectedClassId ||
+        (s as any).class_code === selectedClassId ||
+        (s as any).classId === selectedClassId;
+      return matchSubj && matchClass;
+    });
+  }, [db.syllabusScopes, selectedSubjectId, selectedClassId, currentSubject]);
+
   // Scoped pacing data for the selected (subject, class)
   const pacingData = useMemo(() => {
     if (!selectedSubjectId || !selectedClassId) return null;
@@ -214,9 +249,62 @@ export const JournalView: React.FC<JournalViewProps> = ({
       return acc + 1;
     }, 0);
 
-    const pagesPerSession = projection.length > 0
+    let pagesPerSession = projection.length > 0
       ? (totalPages / projection.length).toFixed(1)
       : '0';
+
+    // If an adjustment exists, calculate active adjusted pace from the checkpoint onward
+    const adj = existingScope?.adjustment;
+    if (adj && projection.length > 0) {
+      let checkpointIdx = projection.findIndex(
+        (p) => p.session.meetingIndex === adj.checkpointSessionIndex
+      );
+      if (checkpointIdx === -1 && adj.checkpointSessionId) {
+        checkpointIdx = projection.findIndex((p) => p.session.id === adj.checkpointSessionId);
+      }
+      if (checkpointIdx === -1 && adj.checkpointDate) {
+        checkpointIdx = projection.findIndex((p) => p.session.date === adj.checkpointDate);
+      }
+      if (checkpointIdx === -1) {
+        checkpointIdx = 0;
+      }
+
+      const remainingSessionCount = Math.max(1, projection.length - checkpointIdx);
+
+      // Calculate remaining pages from checkpoint unit & page
+      const currUnitIdx = scopedUnits.findIndex((u) => u.id === adj.checkpointUnitId);
+      const cutSet = new Set(adj.strategy === 'cut' ? (adj.cutUnitIds || []) : []);
+
+      let remPages = 0;
+      if (currUnitIdx !== -1) {
+        const currentUnit = scopedUnits[currUnitIdx];
+        const uStart = typeof currentUnit.page_start === 'number' ? currentUnit.page_start : parseInt(String(currentUnit.page_start), 10) || 1;
+        const uEnd = typeof currentUnit.page_end === 'number' ? currentUnit.page_end : parseInt(String(currentUnit.page_end), 10) || 100;
+        if (!isNaN(uEnd) && adj.checkpointPage <= uEnd) {
+          if (!cutSet.has(currentUnit.id)) {
+            remPages += Math.max(0, uEnd - adj.checkpointPage + 1);
+          }
+        }
+        for (let j = currUnitIdx + 1; j < scopedUnits.length; j++) {
+          const u = scopedUnits[j];
+          if (!cutSet.has(u.id)) {
+            const s = typeof u.page_start === 'number' ? u.page_start : parseInt(String(u.page_start), 10) || 1;
+            const e = typeof u.page_end === 'number' ? u.page_end : parseInt(String(u.page_end), 10) || 1;
+            remPages += Math.max(1, e - s + 1);
+          }
+        }
+      } else {
+        for (const u of scopedUnits) {
+          if (!cutSet.has(u.id)) {
+            const s = typeof u.page_start === 'number' ? u.page_start : parseInt(String(u.page_start), 10) || 1;
+            const e = typeof u.page_end === 'number' ? u.page_end : parseInt(String(u.page_end), 10) || 1;
+            remPages += Math.max(1, e - s + 1);
+          }
+        }
+      }
+
+      pagesPerSession = (remPages / remainingSessionCount).toFixed(1);
+    }
 
     return {
       projection,
@@ -224,20 +312,219 @@ export const JournalView: React.FC<JournalViewProps> = ({
       totalPages,
       pagesPerSession
     };
-  }, [db, selectedSubjectId, selectedClassId]);
+  }, [db, selectedSubjectId, selectedClassId, existingScope]);
 
-  const currentSubject = db.subjects.find((s) => s.id === selectedSubjectId);
-  const currentClass = db.classes.find((c) => c.id === selectedClassId);
-  const teacherMap = new Map<string, Teacher>((db.teachers || []).map((t) => [t.id, t]));
-  const roomMap = new Map<string, Room>((db.rooms || []).map((r) => [r.id, r]));
+  // Pacing Calibration state (Admin feature)
+  const [isCalibrating, setIsCalibrating] = useState<boolean>(false);
+  const [calibSessionIdx, setCalibSessionIdx] = useState<number>(1);
+  const [calibSessionNumber, setCalibSessionNumber] = useState<number>(1);
+  const [calibUnitId, setCalibUnitId] = useState<string>('');
+  const [calibPage, setCalibPage] = useState<number>(1);
+  const [calibStrategy, setCalibStrategy] = useState<'accelerate' | 'cut'>('accelerate');
+  const [calibCutUnitIds, setCalibCutUnitIds] = useState<string[]>([]);
 
-  // Scope status
-  const existingScope = useMemo(() => {
-    if (!selectedSubjectId || !selectedClassId) return null;
-    return (db.syllabusScopes || []).find(
-      (s) => s.subject_id === selectedSubjectId && s.class_section_id === selectedClassId
+  // Helper to determine displayed session number considering teacher adjustments
+  const displayNumber = (slotIdx: number) => {
+    const adj = existingScope?.adjustment;
+    if (!adj?.checkpointSessionNumber || slotIdx < adj.checkpointSessionIndex) return slotIdx;
+    return slotIdx - adj.checkpointSessionIndex + adj.checkpointSessionNumber;
+  };
+
+  // Identify the active/current session occurrence (today's session, next upcoming, or last session)
+  const currentSessionItem = useMemo(() => {
+    if (!pacingData || pacingData.projection.length === 0) return null;
+    return (
+      pacingData.projection.find((p) => p.session.date === todayStr) ||
+      pacingData.projection.find((p) => p.session.date > todayStr) ||
+      pacingData.projection[pacingData.projection.length - 1]
     );
-  }, [db.syllabusScopes, selectedSubjectId, selectedClassId]);
+  }, [pacingData, todayStr]);
+
+  // Open calibration transformed card initialized with existing adjustment or sensible defaults
+  const handleOpenCalibration = () => {
+    if (!pacingData || pacingData.projection.length === 0) return;
+    const targetSession = currentSessionItem || pacingData.projection[0];
+    const defaultIdx = targetSession.session.meetingIndex;
+    setCalibSessionIdx(defaultIdx);
+
+    if (existingScope?.adjustment && existingScope.adjustment.checkpointSessionIndex === defaultIdx) {
+      if (existingScope.adjustment.checkpointSessionNumber !== undefined) {
+        setCalibSessionNumber(existingScope.adjustment.checkpointSessionNumber);
+      } else {
+        setCalibSessionNumber(displayNumber(defaultIdx) || defaultIdx);
+      }
+      setCalibUnitId(existingScope.adjustment.checkpointUnitId);
+      setCalibPage(existingScope.adjustment.checkpointPage);
+      setCalibStrategy(existingScope.adjustment.strategy);
+      setCalibCutUnitIds(existingScope.adjustment.cutUnitIds || []);
+    } else {
+      setCalibSessionNumber(displayNumber(defaultIdx) || defaultIdx);
+      const firstU =
+        targetSession.units.length > 0 ? targetSession.units[0] : pacingData.scopedUnits[0];
+      if (firstU) {
+        setCalibUnitId(firstU.id);
+        const pStart =
+          typeof firstU.page_start === 'number'
+            ? firstU.page_start
+            : parseInt(String(firstU.page_start), 10) || 1;
+        setCalibPage(pStart);
+      }
+      setCalibStrategy('accelerate');
+      setCalibCutUnitIds([]);
+    }
+    setIsCalibrating(true);
+
+    setTimeout(() => {
+      currentSessionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  };
+
+  // Selected calib unit and page bounds
+  const selectedCalibUnit = useMemo(() => {
+    return pacingData?.scopedUnits.find((u) => u.id === calibUnitId);
+  }, [pacingData?.scopedUnits, calibUnitId]);
+
+  const unitMinPage = useMemo(() => {
+    if (!selectedCalibUnit) return 1;
+    return typeof selectedCalibUnit.page_start === 'number'
+      ? selectedCalibUnit.page_start
+      : parseInt(String(selectedCalibUnit.page_start), 10) || 1;
+  }, [selectedCalibUnit]);
+
+  const unitMaxPage = useMemo(() => {
+    if (!selectedCalibUnit) return 100;
+    return typeof selectedCalibUnit.page_end === 'number'
+      ? selectedCalibUnit.page_end
+      : parseInt(String(selectedCalibUnit.page_end), 10) || 100;
+  }, [selectedCalibUnit]);
+
+  // Subsequent units for cut checklist
+  const subsequentUnits = useMemo(() => {
+    if (!pacingData?.scopedUnits || !calibUnitId) return [];
+    const idx = pacingData.scopedUnits.findIndex((u) => u.id === calibUnitId);
+    if (idx === -1) return [];
+    return pacingData.scopedUnits.slice(idx + 1);
+  }, [pacingData?.scopedUnits, calibUnitId]);
+
+  // Remaining sessions count from checkpoint session
+  const remainingSessionCount = useMemo(() => {
+    if (!pacingData?.projection) return 1;
+    return Math.max(1, pacingData.projection.length - (calibSessionIdx - 1));
+  }, [pacingData?.projection, calibSessionIdx]);
+
+  // Remaining pages based on checkpoint page and cut checklist
+  const calibRemainingPages = useMemo(() => {
+    if (!pacingData?.scopedUnits || !selectedCalibUnit) return 0;
+    const idx = pacingData.scopedUnits.findIndex((u) => u.id === calibUnitId);
+    if (idx === -1) return 0;
+
+    let pages = 0;
+    const uEnd = unitMaxPage;
+    if (calibPage <= uEnd) {
+      pages += Math.max(0, uEnd - calibPage + 1);
+    }
+
+    const cutSet = new Set(calibStrategy === 'cut' ? calibCutUnitIds : []);
+    for (let j = idx + 1; j < pacingData.scopedUnits.length; j++) {
+      const u = pacingData.scopedUnits[j];
+      if (!cutSet.has(u.id)) {
+        const s = typeof u.page_start === 'number' ? u.page_start : parseInt(String(u.page_start), 10) || 1;
+        const e = typeof u.page_end === 'number' ? u.page_end : parseInt(String(u.page_end), 10) || 1;
+        pages += Math.max(1, e - s + 1);
+      }
+    }
+    return pages;
+  }, [pacingData?.scopedUnits, selectedCalibUnit, calibUnitId, calibPage, unitMaxPage, calibStrategy, calibCutUnitIds]);
+
+  const calibNewPace = useMemo(() => {
+    return remainingSessionCount > 0 ? (calibRemainingPages / remainingSessionCount).toFixed(1) : '0';
+  }, [calibRemainingPages, remainingSessionCount]);
+
+  const handleSaveCalibration = () => {
+    if (!selectedSubjectId || !selectedClassId) return;
+
+    const checkpointSession = pacingData?.projection.find(
+      (p) => p.session.meetingIndex === calibSessionIdx
+    );
+
+    const newAdjustment: SyllabusPacingAdjustment = {
+      checkpointSessionIndex: calibSessionIdx,
+      checkpointSessionNumber: Number(calibSessionNumber),
+      checkpointSessionId: checkpointSession?.session.id,
+      checkpointDate: checkpointSession?.session.date,
+      checkpointUnitId: calibUnitId,
+      checkpointPage: Number(calibPage),
+      strategy: calibStrategy,
+      cutUnitIds: calibStrategy === 'cut' ? calibCutUnitIds : [],
+      updatedAt: new Date().toISOString()
+    };
+
+    onUpdateDb((prev) => {
+      const scopes = prev.syllabusScopes ? [...prev.syllabusScopes] : [];
+      const scopeIndex = scopes.findIndex((s) => {
+        const matchSubj =
+          s.subject_id === selectedSubjectId ||
+          (currentSubject && (s.subject_id === currentSubject.id || s.subject_id === currentSubject.code));
+        const matchClass =
+          s.class_section_id === selectedClassId ||
+          (s as any).class_code === selectedClassId ||
+          (s as any).classId === selectedClassId;
+        return matchSubj && matchClass;
+      });
+
+      if (scopeIndex >= 0) {
+        scopes[scopeIndex] = {
+          ...scopes[scopeIndex],
+          adjustment: newAdjustment
+        };
+      } else {
+        scopes.push({
+          id: `scope-${selectedSubjectId}-${selectedClassId}`,
+          subject_id: currentSubject?.id || selectedSubjectId,
+          class_section_id: selectedClassId,
+          adjustment: newAdjustment
+        });
+      }
+
+      return {
+        ...prev,
+        syllabusScopes: scopes
+      };
+    });
+
+    setIsCalibrating(false);
+  };
+
+  const handleResetCalibration = () => {
+    if (!selectedSubjectId || !selectedClassId) return;
+
+    onUpdateDb((prev) => {
+      const scopes = prev.syllabusScopes ? [...prev.syllabusScopes] : [];
+      const scopeIndex = scopes.findIndex((s) => {
+        const matchSubj =
+          s.subject_id === selectedSubjectId ||
+          (currentSubject && (s.subject_id === currentSubject.id || s.subject_id === currentSubject.code));
+        const matchClass =
+          s.class_section_id === selectedClassId ||
+          (s as any).class_code === selectedClassId ||
+          (s as any).classId === selectedClassId;
+        return matchSubj && matchClass;
+      });
+
+      if (scopeIndex >= 0) {
+        const updated = { ...scopes[scopeIndex] };
+        delete updated.adjustment;
+        scopes[scopeIndex] = updated;
+      }
+
+      return {
+        ...prev,
+        syllabusScopes: scopes
+      };
+    });
+
+    setIsCalibrating(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -396,9 +683,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
                     s.department.toLowerCase().includes(subjectSearch.toLowerCase())
                 )
                 .map((subject) => {
-                  const unitCount = (db.syllabusUnits || []).filter(
-                    (u) => u.subject_id === subject.id
-                  ).length;
+                  const unitCount = getUnitsForSubject(db, subject.id).length;
                   const ruleCount = (db.rules || []).filter(
                     (r) => r.active !== false && r.subjectId === subject.id
                   ).length;
@@ -509,7 +794,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
       {selectedSubjectId && selectedClassId && (
         <div className="space-y-4">
           {/* Breadcrumb & Header Card */}
-          <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs">
+          <div className="sticky top-30 z-20 bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3.5 mb-3.5">
               <div className="flex items-center gap-2">
                 <button
@@ -560,30 +845,63 @@ export const JournalView: React.FC<JournalViewProps> = ({
                 </div>
               </div>
 
-              {/* Admin Scope Button */}
-              {isAdmin ? (
-                onNavigateToRuleManager && (
+              {/* Action Buttons: Kalibrasi Pacing (Admin only) & Rule Manager Scope */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {isAdmin ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isCalibrating) {
+                          setIsCalibrating(false);
+                        } else {
+                          handleOpenCalibration();
+                        }
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                        existingScope?.adjustment
+                          ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                          : isCalibrating
+                          ? 'bg-slate-200 text-slate-800 border-slate-300'
+                          : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border-amber-200'
+                      }`}
+                      title="Sesuaikan progres riil dan laju silabus untuk sisa pertemuan"
+                    >
+                      <Wrench className="w-3.5 h-3.5 text-amber-600" />
+                      <span>
+                        {existingScope?.adjustment
+                          ? `Laju Terkalibrasi (Sesi #${existingScope.adjustment.checkpointSessionIndex})`
+                          : 'Kalibrasi Laju'}
+                      </span>
+                    </button>
+
+                    {onNavigateToRuleManager && (
+                      <button
+                        type="button"
+                        onClick={onNavigateToRuleManager}
+                        className="flex items-center rounded-xl gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Buka Rule Manager Studio untuk mengatur batas bab silabus"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Ubah Rentang Silabus</span>
+                      </button>
+                    )}
+                  </>
+                ) : existingScope?.adjustment ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 rounded-xl">
+                    <CheckCircle2 className="w-3 h-3 text-amber-600" />
+                    <span>Telah Disesuaikan Guru (Sesi #{existingScope.adjustment.checkpointSessionIndex})</span>
+                  </span>
+                ) : (
                   <button
                     type="button"
-                    onClick={onNavigateToRuleManager}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors cursor-pointer"
-                    title="Buka Rule Manager Studio untuk mengatur batas bab & laju materi"
+                    onClick={onOpenAdminLogin}
+                    className="text-[11px] text-slate-400 hover:text-slate-600 underline cursor-pointer"
                   >
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-amber-700" />
-                    <span>
-                      {existingScope ? 'Edit Batas di Rule Manager' : 'Atur Batas di Rule Manager'}
-                    </span>
+                    Masuk admin untuk kalibrasi laju
                   </button>
-                )
-              ) : (
-                <button
-                  type="button"
-                  onClick={onOpenAdminLogin}
-                  className="text-[11px] text-slate-400 hover:text-slate-600 underline cursor-pointer"
-                >
-                  Masuk admin untuk mengatur batas materi
-                </button>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Meta details (Clean, low-visibility inline presentation) */}
@@ -616,6 +934,15 @@ export const JournalView: React.FC<JournalViewProps> = ({
                     {existingScope ? 'Kustom' : 'Standar'}
                   </span>
                 </span>
+                {existingScope?.adjustment && (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="inline-flex items-center gap-1 font-bold text-amber-800">
+                      <CheckCircle2 className="w-3 h-3 text-amber-600" />
+                      Terkalibrasi dari Sesi #{existingScope.adjustment.checkpointSessionIndex}+
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -632,7 +959,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
           ) : (
             <div className="space-y-3">
               {pacingData.projection.map((item, index) => {
-                const { session, units } = item;
+                const { session, units, isCheckpoint, isAdjusted } = item;
                 const teacher = teacherMap.get(session.teacherId);
                 const room = roomMap.get(session.roomId);
 
@@ -640,11 +967,236 @@ export const JournalView: React.FC<JournalViewProps> = ({
                 const isToday = session.date === todayStr;
                 const isFuture = session.date > todayStr;
                 const isTargetHighlighted = activeHighlightDate === session.date;
+                const isCurrent = currentSessionItem?.session.id === session.id;
+
+                // When this is the current session and calibration mode is active:
+                // The card transforms into an in-place minimal edit form directly!
+                if (isCurrent && isCalibrating) {
+                  return (
+                    <div
+                      key={session.id}
+                      ref={(el) => {
+                        currentSessionRef.current = el;
+                        if (isToday || isTargetHighlighted) todayRowRef.current = el;
+                      }}
+                      className="rounded-2xl border-2 border-amber-400 bg-white p-4 sm:p-5 shadow-md ring-2 ring-amber-200/60 relative space-y-3.5 transition-all"
+                    >
+                      {/* Header of Form */}
+                      <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs font-bold text-xs">
+                            #{displayNumber(session.meetingIndex)}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                                Sesuaikan Sesi ini dengan praktek
+                              </h4>
+                              <span className="text-[11px] text-slate-500 font-medium">
+                                ({session.day}, {session.date})
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsCalibrating(false)}
+                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                          title="Tutup penyesuaian"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Three fields: Sesi ke-, Bab & Halaman */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        {/* Field: Sesi ke- */}
+                        <div className="w-full sm:w-28 flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-400 shrink-0">Sesi ke-</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={calibSessionNumber}
+                            onChange={(e) => setCalibSessionNumber(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+
+                        {/* Field 1: Materi Awal (Bab) */}
+                        <div className="flex-1 min-w-[200px] flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-400 shrink-0">Bab.</span>
+                          <select
+                            value={calibUnitId}
+                            onChange={(e) => {
+                              const uId = e.target.value;
+                              setCalibUnitId(uId);
+                              const u = pacingData?.scopedUnits.find((unit) => unit.id === uId);
+                              if (u) {
+                                const pStart =
+                                  typeof u.page_start === 'number'
+                                    ? u.page_start
+                                    : parseInt(String(u.page_start), 10) || 1;
+                                setCalibPage(pStart);
+                              }
+                            }}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                          >
+                            {pacingData?.scopedUnits.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {formatUnitDisplay(u)} (hal. {u.page_start}–{u.page_end})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Field 2: Halaman Saat Ini */}
+                        <div className="w-full sm:w-36 flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-400 shrink-0">Hal.</span>
+                          <input
+                            type="number"
+                            min={unitMinPage}
+                            max={unitMaxPage}
+                            value={calibPage}
+                            onChange={(e) => setCalibPage(parseInt(e.target.value, 10) || unitMinPage)}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+
+                        {/* Live Pace Preview */}
+                        <div className="text-xs font-medium text-slate-600 flex items-center gap-1.5 shrink-0 sm:ml-auto">
+                          <span>Laju baru:</span>
+                          <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                            ~{calibNewPace} hal/sesi
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Scissor Toggle & Cut Panel (Seamless integration) */}
+                      {calibStrategy !== 'cut' ? (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-center gap-1.5 p-3 rounded-full">
+                            <button
+                              type="button"
+                              onClick={() => setCalibStrategy('cut')}
+                              className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-400 shadow-xl hover:bg-rose-100 text-white hover:text-rose-500 cursor-pointer transition-colors"
+                              title="Klik jika ada bab lanjutan yang perlu dipotong / dilewati"
+                            >
+                              <Scissors className="w-4 h-4" />
+                            </button>
+                            <span className="text-xs text-slate-500">Potong?</span>
+                          </div>
+                          <span className="text-xs text-slate-600">Tidak ada materi dipotong. Laju disesuaikan saja.</span>
+                        </div>
+                      ) : (
+                        <div className="bg-rose-50/60 rounded-xl border border-rose-100 p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setCalibStrategy('accelerate')}
+                                className="flex items-center justify-center w-8 h-8 rounded-full border border-white bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 cursor-pointer transition-colors"
+                                title="Batal potong materi (kembali ke sesuaikan saja)"
+                              >
+                                <Scissors className="w-3.5 h-3.5 text-white" />
+                              </button>
+                              <span className="text-xs font-semibold text-slate-700">
+                                Pilih bab yang akan dibuang:
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-bold text-rose-700">
+                              {calibCutUnitIds.length} dipilih
+                            </span>
+                          </div>
+
+                          {subsequentUnits.length === 0 ? (
+                            <p className="text-[11px] text-slate-400 italic">
+                              Tidak ada bab lanjutan setelah materi ini untuk dipangkas.
+                            </p>
+                          ) : (
+                            <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                              {subsequentUnits.map((u) => {
+                                const isCut = calibCutUnitIds.includes(u.id);
+                                const pCount =
+                                  (typeof u.page_end === 'number' ? u.page_end : parseInt(String(u.page_end), 10)) -
+                                  (typeof u.page_start === 'number' ? u.page_start : parseInt(String(u.page_start), 10)) + 1;
+                                return (
+                                  <label
+                                    key={u.id}
+                                    className={`flex items-center justify-between gap-2 p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                                      isCut
+                                        ? 'bg-rose-50 border-rose-300 text-rose-900 font-semibold'
+                                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={isCut}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setCalibCutUnitIds([...calibCutUnitIds, u.id]);
+                                          } else {
+                                            setCalibCutUnitIds(calibCutUnitIds.filter((id) => id !== u.id));
+                                          }
+                                        }}
+                                        className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer"
+                                      />
+                                      <span className="truncate">{formatUnitDisplay(u)}</span>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 shrink-0">
+                                      {pCount > 0 ? `${pCount} hal` : ''}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Bottom Footer Actions */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsCalibrating(false)}
+                            className="px-3 py-1.5 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 text-xs font-semibold cursor-pointer transition-colors"
+                          >
+                            Batal
+                          </button>
+                          {existingScope?.adjustment && (
+                            <button
+                              type="button"
+                              onClick={handleResetCalibration}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold cursor-pointer transition-colors"
+                              title="Hapus penyesuaian dan kembali ke jadwal standar"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Reset ke Standar</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleSaveCalibration}
+                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Simpan &amp; Terapkan</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
 
                 return (
                   <div
                     key={session.id}
-                    ref={isToday || isTargetHighlighted ? todayRowRef : undefined}
+                    ref={(el) => {
+                      if (isCurrent) currentSessionRef.current = el;
+                      if (isToday || isTargetHighlighted) todayRowRef.current = el;
+                    }}
                     className={`rounded-2xl border transition-all p-4 relative overflow-hidden ${
                       isToday
                         ? 'bg-amber-50 border-amber-300 shadow-md ring-2 ring-amber-400'
@@ -655,6 +1207,38 @@ export const JournalView: React.FC<JournalViewProps> = ({
                         : 'bg-white border-slate-200 shadow-2xs hover:border-slate-300'
                     }`}
                   >
+                    {/* Checkpoint Indicator Banner */}
+                    {isCheckpoint && (
+                      <div className="mb-3 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-amber-900">
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-md bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          <div>
+                            <span className="font-bold">Titik Awal Kalibrasi Guru:</span>{' '}
+                            <span>
+                              Mulai hal. {existingScope?.adjustment?.checkpointPage} (
+                              {existingScope?.adjustment?.strategy === 'cut'
+                                ? `Pangkas ${(existingScope?.adjustment?.cutUnitIds || []).length} Bab`
+                                : 'disesuaikan tanpa pemangkasan'}
+                              )
+                            </span>
+                          </div>
+                        </div>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleOpenCalibration();
+                            }}
+                            className="text-[11px] font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                          >
+                            Ubah Kalibrasi
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
                       {/* Left: Session timing, meeting badge, room */}
                       <div className="flex items-start gap-3 min-w-0 md:w-5/12">
@@ -668,7 +1252,7 @@ export const JournalView: React.FC<JournalViewProps> = ({
                               : 'bg-slate-100 text-slate-800'
                           }`}
                         >
-                          #{session.meetingIndex}
+                          #{displayNumber(session.meetingIndex)}
                         </div>
 
                         <div className="min-w-0 flex-1">
@@ -690,6 +1274,29 @@ export const JournalView: React.FC<JournalViewProps> = ({
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 Akan Datang
                               </span>
+                            )}
+                            {isAdjusted && !isCheckpoint && (
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300/80 flex items-center gap-1"
+                                title="Laju materi pada sesi ini telah disesuaikan dari kalibrasi guru"
+                              >
+                                <CheckCircle2 className="w-2.5 h-2.5 text-amber-600" />
+                                Terkalibrasi
+                              </span>
+                            )}
+                            {isCurrent && isAdmin && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenCalibration();
+                                }}
+                                className="p-1 rounded-lg text-slate-400 hover:text-amber-700 hover:bg-amber-100/80 transition-colors cursor-pointer shrink-0 ml-1"
+                                title="Sesuaikan Laju"
+                                aria-label="Sesuaikan Laju"
+                              >
+                                <Wrench className="w-5 h-5 text-amber-600" />
+                              </button>
                             )}
                           </div>
 
@@ -720,30 +1327,75 @@ export const JournalView: React.FC<JournalViewProps> = ({
 
                         {units.length === 0 ? (
                           <div className="text-xs text-slate-400 italic">
-                            (Pacing / Pembahasan Mandiri &amp; Evaluasi)
+                            (Distribusi / Pembahasan Mandiri &amp; Evaluasi)
                           </div>
                         ) : (
                           <div className="space-y-1.5">
-                            {units.map((unit) => (
-                              <div
-                                key={unit.id}
-                                className={`text-xs px-3 py-2 rounded-xl flex items-start justify-between gap-2 border ${
-                                  isToday
-                                    ? 'bg-amber-100/60 border-amber-200/80 text-amber-950 font-bold'
-                                    : 'bg-slate-50 border-slate-200/70 text-slate-800 font-medium'
-                                }`}
-                              >
-                                <div className="flex items-start gap-2 min-w-0">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
-                                  <span className="leading-snug break-words">
-                                    {formatUnitDisplay(unit)}
-                                  </span>
+                            {units.map((unit) => {
+                              const bId = unit.bookId || currentSubject?.default_book || currentSubject?.defaultBookId || currentSubject?.primary_book_code;
+                              const book = bId
+                                ? bookMap.get(bId) ||
+                                  Array.from(bookMap.values()).find(
+                                    (b: any) => b.id === bId || b.displayCode === bId || b.title === bId
+                                  )
+                                : null;
+
+                              return (
+                                <div
+                                  key={unit.id}
+                                  className={`text-xs px-3 py-2 rounded-xl flex items-start justify-between gap-2 border ${
+                                    isToday
+                                      ? 'bg-amber-100/60 border-amber-200/80 text-amber-950 font-bold'
+                                      : 'bg-slate-50 border-slate-200/70 text-slate-800 font-medium'
+                                  }`}
+                                >
+                                  {/* Left: (bullet) (book) (material) */}
+                                  <div className="flex items-start gap-2 min-w-0 flex-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
+                                    {book && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onNavigateToBooks?.(book.id);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 transition-colors cursor-pointer shrink-0"
+                                        title={`Kitab: ${book.title}${book.altTitle ? ` (${book.altTitle})` : ''} • Klik untuk melihat info kitab`}
+                                      >
+                                        <Book className="w-3 h-3 text-indigo-600 shrink-0" />
+                                        <span className="truncate max-w-[120px] sm:max-w-[160px]">
+                                          {book.altTitle || book.title || book.displayCode}
+                                        </span>
+                                      </button>
+                                    )}
+                                    <span className="leading-snug break-words">
+                                      {formatUnitDisplay(unit)}
+                                    </span>
+                                  </div>
+
+                                  {/* Right: page numbers */}
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {unit.isPartialStart && (
+                                      <ArrowRight
+                                        className="w-3 h-3 text-amber-500 shrink-0"
+                                        title={`Lanjutan dari sesi sebelumnya (mulai hal. ${unit.page_start} dari total hal. ${unit.raw_page_start}–${unit.raw_page_end})`}
+                                      />
+                                    )}
+                                    <span className="text-[10px] font-mono text-slate-500 shrink-0 px-1.5 py-0.5 rounded bg-white/70 border border-slate-200">
+                                      {String(unit.page_start) === String(unit.page_end)
+                                        ? `hal. ${unit.page_start}`
+                                        : `hal. ${unit.page_start}-${unit.page_end}`}
+                                    </span>
+                                    {unit.isPartialEnd && (
+                                      <ArrowRight
+                                        className="w-3 h-3 text-amber-500 shrink-0"
+                                        title={`Bersambung ke sesi berikutnya (sampai hal. ${unit.page_end} dari total hal. ${unit.raw_page_start}–${unit.raw_page_end})`}
+                                      />
+                                    )}
+                                  </div>
                                 </div>
-                                <span className="text-[10px] font-mono text-slate-500 shrink-0 px-1.5 py-0.5 rounded bg-white/70 border border-slate-200">
-                                  hal. {unit.page_start}-{unit.page_end}
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>

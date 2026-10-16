@@ -312,21 +312,27 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         />
       )}
 
-      {/* Rules Panel Toggle Button placed under legend */}
+      {/* Rules Form Toggle Button placed under legend */}
       {onToggleRules && (
         <div className="flex items-center justify-between pt-1">
           <button
             type="button"
             id="schedule-rules-toggle-btn"
-            onClick={() => onToggleRules(!showRules)}
+            onClick={() => {
+              if (!isAdmin && !showRules && onOpenAdminLogin) {
+                onOpenAdminLogin();
+                return;
+              }
+              onToggleRules(!showRules);
+            }}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer select-none shadow-2xs ${
               showRules
-                ? 'bg-amber-50 text-amber-900 border-amber-300 ring-1 ring-amber-200'
+                ? 'bg-indigo-50 text-indigo-900 border-indigo-300 ring-1 ring-indigo-200'
                 : 'bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-slate-200'
             }`}
           >
-            <Layers className={`w-3.5 h-3.5 shrink-0 ${showRules ? 'text-amber-600' : 'text-slate-500'}`} />
-            <span>{showRules ? 'Sembunyikan Panel Aturan' : 'Panel Aturan Jadwal'}</span>
+            <Layers className={`w-3.5 h-3.5 shrink-0 ${showRules ? 'text-indigo-600' : 'text-slate-500'}`} />
+            <span>{showRules ? 'Sembunyikan Form Aturan' : 'Form Edit Aturan'}</span>
             <span
               className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
                 showRules ? 'bg-emerald-500 ring-2 ring-emerald-200 animate-pulse' : 'bg-slate-300'

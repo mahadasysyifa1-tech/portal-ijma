@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
   CalendarDays,
@@ -17,7 +17,9 @@ import {
   BookOpen,
   Coffee,
   Sun,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { DatabaseState, KaldikEvent, KaldikEventType, Period } from '../../types';
 import { KaldikEventModal } from '../kaldik/KaldikEventModal';
@@ -135,6 +137,21 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
     });
   }, [events, filterType, filterPeriod, filterRecurrence, search, periodMap]);
 
+  const [pageSize, setPageSize] = useState<number>(15);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterType, filterPeriod, filterRecurrence]);
+
+  const totalPagesCount = Math.max(1, Math.ceil(filteredEvents.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPagesCount);
+  const pagedEvents = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredEvents.slice(start, start + pageSize);
+  }, [filteredEvents, safeCurrentPage, pageSize]);
+
   // Summary counts
   const stats = useMemo(() => {
     let kbmCount = 0;
@@ -218,11 +235,11 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
               <CalendarDays className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-900 leading-tight">
-                Database Kalender Akademik &amp; Event (Kaldik)
+              <h2 className="text-lg font-bold text-slate-900 leading-tight">
+                Event Kalender Akademik
               </h2>
-              <p className="text-[11px] text-slate-500">
-                Rekam data rentang KBM, jadwal asesmen, libur, dan kegiatan santri.
+              <p className="hidden text-[11px] text-slate-500">
+                Rekam data rentang KBM, jadwal event/acara, libur, dan kegiatan santri.
               </p>
             </div>
           </div>
@@ -262,7 +279,7 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-2xs transition-colors cursor-pointer ml-auto sm:ml-1"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Tambah Event</span>
+              <span>Event</span>
             </button>
           </div>
         </div>
@@ -355,33 +372,25 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
 
       {/* Table Data */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between text-xs">
-          <div className="font-bold text-slate-700 flex items-center gap-2">
-            <span>Daftar Agenda Kalender Akademik</span>
-            <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px]">
-              {filteredEvents.length} dari {events.length}
-            </span>
-          </div>
-        </div>
-
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs border-separate border-spacing-0">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
               <tr>
-                <th className="px-3 py-2.5 w-12 text-center">Warna</th>
-                <th className="px-3 py-2.5">Judul Agenda / Event</th>
-                <th className="px-3 py-2.5">Kategori</th>
-                <th className="px-3 py-2.5">Rentang Tanggal</th>
-                <th className="px-3 py-2.5">Waktu / Jam</th>
-                <th className="px-3 py-2.5">Pengulangan</th>
-                <th className="px-3 py-2.5">Fase Terkait</th>
-                <th className="px-3 py-2.5 text-right w-24">Aksi</th>
+                <th className="sticky left-0 z-20 bg-slate-50 px-3 py-2.5 w-[100px] border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] border-b">
+                  Agenda
+                </th>
+                <th className="px-3 py-2.5 border-b border-slate-200">Kategori</th>
+                <th className="px-3 py-2.5 border-b border-slate-200">Rentang Tanggal</th>
+                <th className="px-3 py-2.5 border-b border-slate-200">Waktu / Jam</th>
+                <th className="px-3 py-2.5 border-b border-slate-200">Pengulangan</th>
+                <th className="px-3 py-2.5 border-b border-slate-200">Fase Terkait</th>
+                <th className="px-3 py-2.5 text-right w-24 border-b border-slate-200">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                     <CalendarDays className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-600 text-sm">Tidak ada event kaldik yang sesuai filter</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -392,45 +401,45 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
                   </td>
                 </tr>
               ) : (
-                filteredEvents.map((evt) => {
+                pagedEvents.map((evt) => {
                   const typeCfg = TYPE_CONFIG[evt.type] || TYPE_CONFIG.general;
                   const TypeIcon = typeCfg.icon;
                   const daysSpan = calculateDaysSpan(evt.startDate, evt.endDate);
                   const periodObj = evt.periodId ? periodMap.get(evt.periodId) : null;
 
                   return (
-                    <tr key={evt.id} className="hover:bg-slate-50/80 transition-colors">
-                      {/* Warna preview */}
-                      <td className="px-3 py-2.5 text-center">
-                        <div
-                          className="w-4 h-4 rounded-full mx-auto shadow-2xs border border-white"
-                          style={{ backgroundColor: evt.color || '#6366F1' }}
-                          title={`Hex: ${evt.color || '#6366F1'}`}
-                        />
-                      </td>
-
-                      {/* Judul & Deskripsi */}
-                      <td className="px-3 py-2.5">
-                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                          <span>{evt.title}</span>
-                          {evt.isKbm && (
-                            <span className="px-1.5 py-0.2 text-[9px] font-extrabold bg-amber-500 text-white rounded">
-                              KBM
-                            </span>
-                          )}
-                        </div>
-                        {evt.description && (
-                          <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
-                            {evt.description}
+                    <tr key={evt.id} className="hover:bg-slate-50/80 transition-colors group">
+                      {/* Judul & Deskripsi (Sticky First Column with Color Dot) */}
+                      <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors px-3 py-2.5 min-w-[200px] border-r border-b border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)]">
+                        <div className="flex items-start gap-2.5">
+                          <div
+                            className="w-3.5 h-3.5 rounded-full mt-0.5 shrink-0 shadow-2xs border border-white"
+                            style={{ backgroundColor: evt.color || '#6366F1' }}
+                            title={`Warna: ${evt.color || '#6366F1'}`}
+                          />
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                              <span>{evt.title}</span>
+                              {evt.isKbm && (
+                                <span className="px-1.5 py-0.2 text-[9px] font-extrabold bg-amber-500 text-white rounded">
+                                  KBM
+                                </span>
+                              )}
+                            </div>
+                            {evt.description && (
+                              <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                                {evt.description}
+                              </div>
+                            )}
+                            <div className="text-[9px] text-slate-400 font-mono mt-0.5">
+                              ID: {evt.id}
+                            </div>
                           </div>
-                        )}
-                        <div className="text-[9px] text-slate-400 font-mono mt-0.5">
-                          ID: {evt.id}
                         </div>
                       </td>
 
                       {/* Kategori Badge */}
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2.5 border-b border-slate-100">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${typeCfg.badgeClass}`}>
                           <TypeIcon className="w-3 h-3 shrink-0" />
                           <span>{typeCfg.label}</span>
@@ -438,7 +447,7 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
                       </td>
 
                       {/* Rentang Tanggal */}
-                      <td className="px-3 py-2.5 whitespace-nowrap">
+                      <td className="px-3 py-2.5 whitespace-nowrap border-b border-slate-100">
                         <div className="font-medium text-slate-800">
                           {formatDateDisplay(evt.startDate)}
                           {evt.startDate !== evt.endDate && (
@@ -451,7 +460,7 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
                       </td>
 
                       {/* Waktu / Jam */}
-                      <td className="px-3 py-2.5 whitespace-nowrap">
+                      <td className="px-3 py-2.5 whitespace-nowrap border-b border-slate-100">
                         {evt.isAllDay ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600">
                             <Clock className="w-3 h-3 text-slate-400" />
@@ -466,7 +475,7 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
                       </td>
 
                       {/* Pengulangan */}
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2.5 border-b border-slate-100">
                         {evt.isRecurring ? (
                           <div>
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold">
@@ -485,7 +494,7 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
                       </td>
 
                       {/* Terkait Periode */}
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2.5 border-b border-slate-100">
                         {periodObj ? (
                           <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 text-[10px] font-medium" title={`${periodObj.name} (${periodObj.startDate} - ${periodObj.endDate})`}>
                             {periodObj.name}
@@ -496,7 +505,7 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
                       </td>
 
                       {/* Aksi */}
-                      <td className="px-3 py-2.5 text-right">
+                      <td className="px-3 py-2.5 text-right border-b border-slate-100">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
@@ -522,6 +531,74 @@ export const KaldikEventsDatabaseTab: React.FC<KaldikEventsDatabaseTabProps> = (
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination & Row Count Limit Bar */}
+        <div className="px-4 py-3 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3">
+            <span className="text-slate-500">
+              Menampilkan{' '}
+              <strong className="text-slate-700">
+                {filteredEvents.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}
+              </strong>{' '}
+              –{' '}
+              <strong className="text-slate-700">
+                {Math.min(safeCurrentPage * pageSize, filteredEvents.length)}
+              </strong>{' '}
+              dari <strong className="text-slate-700">{filteredEvents.length}</strong> agenda
+            </span>
+
+            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <span>Baris per halaman:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-200 rounded px-2 py-0.5 text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+              >
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+
+          {totalPagesCount > 1 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={safeCurrentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-2xs"
+                title="Halaman Sebelumnya"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="flex items-center gap-1 px-2 text-xs font-semibold text-slate-700">
+                <span>Halaman</span>
+                <span className="bg-white px-2 py-0.5 border border-slate-200 rounded text-indigo-700 font-bold shadow-2xs">
+                  {safeCurrentPage}
+                </span>
+                <span className="text-slate-400">dari {totalPagesCount}</span>
+              </div>
+
+              <button
+                type="button"
+                disabled={safeCurrentPage >= totalPagesCount}
+                onClick={() => setCurrentPage((p) => Math.min(totalPagesCount, p + 1))}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-2xs"
+                title="Halaman Selanjutnya"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

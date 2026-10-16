@@ -33,7 +33,7 @@ function getSessionAbbr(name: string): string {
     const firstChar = clean[0].toUpperCase();
     return `${firstChar}${numMatch[1]}`;
   }
-  return clean.slice(0, 2).toUpperCase();
+  return clean.slice(0, 3).toUpperCase();
 }
 
 export const AdminAuditGrid: React.FC<AdminAuditGridProps> = ({

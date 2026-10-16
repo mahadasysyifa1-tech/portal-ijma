@@ -9,8 +9,10 @@ export interface SubjectLinks {
 }
 
 export interface Subject {
-  id: string;
-  code: string;
+  id: string; // Auto-generated unique text ID, e.g. 'sub-54462'
+  display_code?: string; // User-editable display short code, e.g. 'ARB', 'MATH101'
+  displayCode?: string;
+  code?: string; // Alias for display_code
   name: string;
   color: string;
   department: string;
@@ -18,6 +20,10 @@ export interface Subject {
   defaultRoomId?: string;
   default_teacher_id?: string | null;
   default_room_id?: string | null;
+  default_book?: string | null;
+  defaultBookId?: string | null;
+  default_book_id?: string | null;
+  primary_book_code?: string | null;
   book?: string;
   links?: SubjectLinks;
   pdfLink?: string;
@@ -26,8 +32,66 @@ export interface Subject {
   siteLink?: string;
 }
 
+export interface Book {
+  id: string; // Auto-generated unique text ID, e.g. 'bk-math-101'
+  display_code?: string;
+  displayCode?: string;
+  title: string;
+  altTitle?: string;
+  author?: string;
+  publisher?: string;
+  edition?: string;
+  totalChapters?: number;
+  totalPages?: number;
+  defaultSubjectId?: string;
+  defaultTeacherId?: string;
+  links?: BookLink[];
+  chapters?: BookChapter[];
+}
+
+export interface BookLink {
+  id?: string;
+  bookId: string;
+  type: 'pdf' | 'drive' | 'shopping_tokopedia' | 'shopping_shopee' | 'shopping' | 'site' | string;
+  label: string;
+  url: string;
+  sortOrder?: number;
+}
+
+export interface BookChapter {
+  id: string; // unique code, e.g. 'chap-bk-math-01'
+  bookId: string;
+  chapterNumber: number;
+  title: string;
+  pageStart?: number;
+  pageEnd?: number;
+  description?: string;
+}
+
+export interface Material {
+  id: string; // unique code, e.g. 'mat-1'
+  bookId: string;
+  chapterBookId?: string; // Replaces chapterNumber: Chapter book id (e.g. 'chap-bk-math-01')
+  chapterNumber?: number; // legacy fallback
+  order: number;
+  title: string;
+  pageStart?: number | string;
+  pageEnd?: number | string;
+  part?: number | string; // Jilid / Volume / Part related to chapter/book
+  no?: number;
+  eno?: number;
+  // Aliases for compatibility:
+  subjectId?: string;
+  subject_id?: string;
+  chapter_book_id?: string;
+  page_start?: number | string;
+  page_end?: number | string;
+}
+
 export interface ClassEntity {
-  id: string;
+  id: string; // Auto-generated unique text ID, e.g. 'cls-10a'
+  display_code?: string;
+  displayCode?: string;
   name: string;
   grade: number;
   section: string;
@@ -42,7 +106,9 @@ export interface ClassEntity {
 }
 
 export interface Room {
-  id: string;
+  id: string; // Auto-generated unique text ID, e.g. 'rm-101'
+  display_code?: string;
+  displayCode?: string;
   name: string;
   building: string;
   capacity: number;
@@ -50,7 +116,9 @@ export interface Room {
 }
 
 export interface Teacher {
-  id: string;
+  id: string; // Auto-generated unique text ID, e.g. 'tch-chen'
+  display_code?: string;
+  displayCode?: string;
   name: string;
   panggilan?: string;
   email: string;
@@ -58,10 +126,13 @@ export interface Teacher {
   maxPeriodsPerWeek: number;
   max_periods_per_week?: number;
   color?: string;
+  assignedClassIds?: string[];
 }
 
 export interface Session {
-  id: string;
+  id: string; // Auto-generated unique text ID, e.g. 'ses-1'
+  display_code?: string;
+  displayCode?: string;
   name: string;
   order: number;
   startTime: string; // timeA (e.g. '08:00')
@@ -90,11 +161,13 @@ export interface RuleException {
   overrideSessionId?: string; // e.g. 'ses-3' (override time-range session)
   overrideRoomId?: string;
   overrideTeacherId?: string;
+  overrideSubjectId?: string;
   note?: string;
   period_id?: string;
   override_session_id?: string;
   override_room_id?: string;
   override_teacher_id?: string;
+  override_subject_id?: string;
 }
 
 export interface ResolvedSlot {
@@ -210,28 +283,94 @@ export interface DatabaseState {
   periods: Period[];
   rules: ScheduleRule[];
   kaldikEvents?: KaldikEvent[];
+  books?: Book[];
+  materials?: Material[];
   syllabusUnits?: SyllabusUnit[];
   syllabusScopes?: SyllabusScope[];
+  students?: StudentRecord[];
+  enrollments?: EnrollmentRecord[];
+}
+
+export interface StudentRecord {
+  id: string;
+  nisn?: string;
+  name: string;
+  gender?: 'L' | 'P';
+  phone?: string;
+  enrolledClassIds?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EnrollmentRecord {
+  id?: number;
+  classId: string;
+  studentId: string;
+  teacherId?: string;
+  academicYear?: string;
+  active?: number | boolean;
 }
 
 export interface SyllabusUnit {
   id: string;
-  subject_id: string; // from mapel_id
-  order: number; // from mapel_n
-  title: string; // from mtr
-  page_start: number | string; // from hal pertama
-  page_end: number | string; // from hal terakhir
-  part: number | string; // from pt
-  no: number;
-  eno: number;
+  bookId?: string; // from book_code
+  bookCode?: string;
+  chapterBookId?: string; // chapter book id
+  chapterNumber?: number;
+  subject_id?: string; // dynamically resolved via scope/book or legacy mapel_id
+  order: number; // sequential order
+  title: string;
+  page_start: number | string;
+  page_end: number | string;
+  part?: number | string;
+  no?: number;
+  eno?: number;
+  isPartialStart?: boolean;
+  isPartialEnd?: boolean;
+  raw_page_start?: number | string;
+  raw_page_end?: number | string;
+  display_page_start?: number | string;
+  display_page_end?: number | string;
+  midpage?: number;
+}
+
+export interface SyllabusScopeItem {
+  id: string;
+  scopeId: string;
+  bookId: string;
+  chapterBookId?: string;
+  chapterNumber?: number;
+  startMaterialId?: string;
+  endMaterialId?: string;
+  sortOrder?: number;
+  note?: string;
+}
+
+export interface SyllabusPacingAdjustment {
+  checkpointSessionIndex: number; // 1-based meetingIndex (e.g. 8)
+  checkpointSessionNumber?: number; // displayed session number override from this checkpoint
+  checkpointSessionId?: string; // id of scheduled session occurrence
+  checkpointDate?: string; // 'YYYY-MM-DD'
+  checkpointUnitId: string; // unit id where the teacher is currently at
+  checkpointPage: number; // actual page currently reached
+  strategy: 'accelerate' | 'cut';
+  cutUnitIds?: string[]; // unit IDs to drop/cut from syllabus
+  updatedAt?: string;
+  notes?: string;
 }
 
 export interface SyllabusScope {
   id: string;
   subject_id: string;
   class_section_id: string; // class entity id
-  start_unit_id: string; // FK to SyllabusUnit
-  end_unit_id: string; // FK to SyllabusUnit
+  name?: string;
+  notes?: string;
+  book_ids?: string[]; // Multiple book selection in syllabus scope!
+  book_id?: string; // Primary/first book
+  start_unit_id?: string; // FK to SyllabusUnit / Material (bridge)
+  end_unit_id?: string; // FK to SyllabusUnit / Material (bridge)
+  items?: SyllabusScopeItem[]; // Multi-book, multi-chapter scope items
+  adjustment?: SyllabusPacingAdjustment;
 }
 
 export interface ScheduledSessionOccurrence {
@@ -249,4 +388,114 @@ export interface ScheduledSessionOccurrence {
   roomId: string;
   periodId: string;
   meetingIndex: number; // 1-based index for this subject & class in the term
+}
+
+export type SaveStatus =
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'ok'; at: string; counts: Record<string, number> }
+  | { kind: 'error'; message: string };
+
+// ----------------------------------------------------------------------------
+// Attendance (Presensi Terpadu) Types
+// ----------------------------------------------------------------------------
+export type AttendanceStatus = 'Hadir' | 'Izin' | 'Sakit' | 'Terlambat' | 'Alpa';
+export type AttendancePersonType = 'student' | 'teacher';
+
+export interface Student {
+  id: string;
+  nisn?: string;
+  name: string;
+  gender?: 'L' | 'P';
+  phone?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AttendanceEnrollment {
+  id: number;
+  classId: string;
+  studentId: string;
+  teacherId?: string;
+  academicYear?: string;
+  active: boolean;
+  student?: Student;
+}
+
+export interface AttendanceMeetingSummary {
+  id: string;
+  meetingDate: string;
+  meetingIndex?: number;
+  classId: string;
+  className: string;
+  classColor?: string;
+  classGrade?: number;
+  classSection?: string;
+  subjectId: string;
+  subjectName: string;
+  subjectColor: string;
+  teacherId: string;
+  teacherName: string;
+  roomId: string;
+  roomName: string;
+  sessionId: string;
+  sessionName: string;
+  startTime: string;
+  endTime: string;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  notes?: string;
+  summary: {
+    totalEnrolled: number;
+    hadirCount: number;
+    izinCount: number;
+    sakitCount: number;
+    terlambatCount: number;
+    alpaCount: number;
+    teacherStatus?: AttendanceStatus;
+  };
+}
+
+export interface AttendanceRollCallStudent {
+  studentId: string;
+  name: string;
+  nisn: string;
+  gender: 'L' | 'P';
+  status: AttendanceStatus;
+  timestampStart?: string;
+  timestampEnd?: string;
+  note?: string;
+}
+
+export interface AttendanceRollCallTeacher {
+  id: string;
+  name: string;
+  status: AttendanceStatus;
+  timestampStart?: string;
+  note?: string;
+}
+
+export interface AttendanceRollCallData {
+  meeting: AttendanceMeetingSummary;
+  teacher: AttendanceRollCallTeacher;
+  students: AttendanceRollCallStudent[];
+}
+
+export interface GenerateMeetingsOptions {
+  startDate?: string;
+  endDate?: string;
+  periodId?: string;
+  skipHolidays?: boolean;
+  overwriteScheduled?: boolean;
+}
+
+export interface GenerateMeetingsResult {
+  success: boolean;
+  totalDaysProcessed: number;
+  totalCreated: number;
+  totalUpdated: number;
+  totalPreserved: number;
+  totalSkippedHolidays: number;
+  startDate: string;
+  endDate: string;
+  message: string;
 }

@@ -13,7 +13,9 @@ import {
   Trash2,
   CalendarDays,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  BookmarkCheck,
+  ArrowRight
 } from 'lucide-react';
 import {
   DatabaseState,
@@ -26,6 +28,7 @@ import {
   Room,
   Session
 } from '../../types';
+import { computePacingProjection, formatUnitDisplay, get_units_for_session, getUnitsForSubject } from '../../utils/pacingEngine';
 
 interface KaldikDaySummaryModalProps {
   isOpen: boolean;
@@ -266,12 +269,42 @@ export const KaldikDaySummaryModal: React.FC<KaldikDaySummaryModalProps> = ({
                   const room = roomMap.get(slot.roomId);
                   const session = sessionMap.get(slot.sessionId);
 
+                  const projection = computePacingProjection(db, slot.subjectId, slot.classId);
+                  const matchedSession = projection.find(
+                    (p) =>
+                      p.session.date === dateStr &&
+                      (p.session.sessionId === slot.sessionId || p.session.ruleId === slot.ruleId)
+                  );
+                  const scheduledUnits = matchedSession
+                    ? matchedSession.units
+                    : get_units_for_session(db, slot.subjectId, slot.classId, `${dateStr}_${slot.sessionId}_${slot.ruleId}`);
+                  const meetingIndex = matchedSession?.session.meetingIndex;
+                  const hasSyllabusForSubject = getUnitsForSubject(db, slot.subjectId).length > 0;
+
+                  // First material & last material calculation
+                  const firstUnit = scheduledUnits[0];
+                  const lastUnit = scheduledUnits[scheduledUnits.length - 1];
+
+                  const firstPage = firstUnit?.page_start ?? firstUnit?.page_end;
+                  const lastPage = lastUnit?.page_end ?? lastUnit?.page_start;
+
+                  const pageRangeLabel =
+                    firstPage !== undefined && lastPage !== undefined
+                      ? firstPage !== lastPage
+                        ? `hal. ${firstPage}-${lastPage}:`
+                        : `hal. ${firstPage}:`
+                      : firstPage !== undefined
+                      ? `hal. ${firstPage}:`
+                      : lastPage !== undefined
+                      ? `hal. ${lastPage}:`
+                      : '';
+
                   return (
                     <div
                       key={`${slot.ruleId}-${slot.sessionId}-${idx}`}
                       className="p-3 bg-white hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                         <div className="w-16 shrink-0">
                           <span className="text-[10px] font-bold text-indigo-700 block">
                             {session?.name || `Sesi ${idx + 1}`}
@@ -281,35 +314,87 @@ export const KaldikDaySummaryModal: React.FC<KaldikDaySummaryModalProps> = ({
                           </span>
                         </div>
 
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span
                               className="w-2 h-2 rounded-full shrink-0"
                               style={{ backgroundColor: subject?.color || '#3B82F6' }}
                             />
-                            <span className="font-bold text-slate-900">
+                            <span className="font-bold text-slate-900 truncate">
                               {subject?.name || 'Mata Pelajaran'}
                             </span>
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
                               {cls?.name || 'Kelas'}
                             </span>
-                          </div>
-
-                          <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3 text-slate-400" />
+                            {meetingIndex !== undefined && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-900 border border-amber-200 shrink-0">
+                                Pertemuan #{meetingIndex}
+                              </span>
+                            )}
+                            <span className="text-slate-300 hidden sm:inline">•</span>
+                            <span className="flex items-center gap-1 text-[11px] text-slate-500 truncate">
+                              <Users className="w-3 h-3 text-slate-400 shrink-0" />
                               <span>{teacher?.panggilan || teacher?.name || 'Guru'}</span>
                             </span>
-                            <span className="flex items-center gap-1">
-                              <DoorOpen className="w-3 h-3 text-slate-400" />
+                            <span className="flex items-center gap-1 text-[11px] text-slate-500 truncate">
+                              <DoorOpen className="w-3 h-3 text-slate-400 shrink-0" />
                               <span>{room?.name || 'Ruang'}</span>
                             </span>
+                          </div>
+
+                          {/* 1-line syllabus: bookmarkcheck icon | {hal. ${first page of first material}-${last page of last material}:} | badge: first material | dash | badge: last material */}
+                          <div className="flex items-center gap-1.5 text-[11px] min-w-0 flex-wrap">
+                            <BookmarkCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            {scheduledUnits.length > 0 ? (
+                              <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                {pageRangeLabel && (
+                                  <span className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold text-amber-900 shrink-0">
+                                    {firstUnit?.isPartialStart && (
+                                      <ArrowRight
+                                        className="w-3 h-3 text-amber-600 shrink-0"
+                                        title={`Lanjutan dari sesi sebelumnya (mulai hal. ${firstUnit.page_start} dari ${firstUnit.raw_page_start}–${firstUnit.raw_page_end})`}
+                                      />
+                                    )}
+                                    <span>{pageRangeLabel}</span>
+                                    {lastUnit?.isPartialEnd && (
+                                      <ArrowRight
+                                        className="w-3 h-3 text-amber-600 shrink-0"
+                                        title={`Bersambung ke sesi berikutnya (sampai hal. ${lastUnit?.page_end} dari ${lastUnit?.raw_page_start}–${lastUnit?.raw_page_end})`}
+                                      />
+                                    )}
+                                  </span>
+                                )}
+                                <span
+                                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-950 border border-amber-200/80 truncate max-w-[200px] sm:max-w-[260px]"
+                                  title={formatUnitDisplay(firstUnit)}
+                                >
+                                  {formatUnitDisplay(firstUnit)}
+                                </span>
+                                {scheduledUnits.length > 1 && (
+                                  <>
+                                    <span className="text-slate-400 shrink-0 font-bold">-</span>
+                                    <span
+                                      className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-950 border border-amber-200/80 truncate max-w-[200px] sm:max-w-[260px]"
+                                      title={formatUnitDisplay(lastUnit)}
+                                    >
+                                      {formatUnitDisplay(lastUnit)}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px] truncate">
+                                {hasSyllabusForSubject
+                                  ? 'Sesi Praktikum / Pembahasan Mandiri'
+                                  : 'Belum ada data silabus'}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
 
                       {slot.hasException && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 self-start sm:self-center">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shrink-0 self-start sm:self-center">
                           Pengecualian Periode
                         </span>
                       )}
